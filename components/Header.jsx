@@ -22,6 +22,8 @@ export default function Header() {
       <strong>Vector Flow</strong> <span>VVCE, CSE (AI &amp; ML)</span>
       <nav>
         <Link href="/">Home</Link>
+        <Link href="/gallery">Gallery</Link>
+        <Link href="/team">Team</Link>
         <Link href="/participation">Participation</Link>
         {user && user.role === "ADMIN" && <Link href="/admin">Admin</Link>}
         {user ? (
