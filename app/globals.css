@@ -1,17 +1,15 @@
-body {
-  font-family: system-ui, sans-serif;
-  margin: 0;
-  color: #111;
-}
-header {
-  padding: 16px 24px;
-  border-bottom: 1px solid #ddd;
-}
-main {
-  padding: 24px;
-  max-width: 720px;
-  margin: 0 auto;
-}
-a {
-  color: #0b5fff;
-}
+body { font-family: system-ui, sans-serif; margin: 0; color: #111; }
+a { color: #0b5fff; }
+header { border-bottom: 1px solid #ddd; padding: 12px 16px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+header nav { display: flex; gap: 12px; flex-wrap: wrap; }
+main { max-width: 900px; margin: 0 auto; padding: 16px; }
+.card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 12px 0; }
+.card img { max-width: 100%; height: auto; }
+.badge { display: inline-block; background: #eef4ff; border: 1px solid #bcd; border-radius: 999px; padding: 2px 10px; margin-right: 8px; }
+form label { display: block; margin: 10px 0; }
+form input, form textarea, form select { display: block; width: 100%; max-width: 520px; padding: 8px; margin-top: 4px; box-sizing: border-box; }
+button { padding: 8px 16px; cursor: pointer; }
+.error { color: #b00020; }
+.success { color: #0a7a2f; }
+table { width: 100%; border-collapse: collapse; }
+th, td { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }

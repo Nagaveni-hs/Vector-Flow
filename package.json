@@ -8,8 +8,13 @@
     "start": "next start"
   },
   "dependencies": {
+    "@prisma/client": "^5.22.0",
     "next": "14.2.33",
+    "nodemailer": "^6.9.14",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0"
   }
 }
