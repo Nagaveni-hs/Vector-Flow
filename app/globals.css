@@ -13,3 +13,19 @@ button { padding: 8px 16px; cursor: pointer; }
 .success { color: #0a7a2f; }
 table { width: 100%; border-collapse: collapse; }
 th, td { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+/* Sprint 5 polish, surgical only: tables that can scroll sideways on
+   a phone instead of breaking the page, and a simple modal box for
+   the payment screenshot on the admin dashboard. No Sprint 1 or 2
+   page layout is redesigned by these rules. */
+.table-wrap { overflow-x: auto; }
+.table-wrap table { min-width: 640px; }
+.modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); overflow: auto; padding: 24px; box-sizing: border-box; z-index: 100; }
+.modal-box { background: #fff; border-radius: 8px; padding: 16px; max-width: 720px; margin: 0 auto; }
+.modal-box img { max-width: 100%; height: auto; }
+@media (max-width: 600px) {
+  main { padding: 12px; }
+  header { padding: 10px 12px; }
+  button { padding: 10px 14px; }
+  form input, form textarea, form select { max-width: 100%; }
+  .card { padding: 12px; }
+}
