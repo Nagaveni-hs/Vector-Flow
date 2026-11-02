@@ -8,7 +8,19 @@ export async function GET() {
   const registrations = await prisma.registration.findMany({
     where: { userId: session.userId },
     orderBy: { registeredAt: "desc" },
-    include: { event: { select: { title: true, slug: true, startAt: true, feeType: true, feeAmount: true } } },
+    include: {
+      event: { select: { title: true, slug: true, startAt: true, feeType: true, feeAmount: true } },
+      certificate: { select: { id: true, status: true, emailedAt: true } },
+    },
   });
-  return ok({ registrations });
+  // Sprint 4 rule, enforced here, not just in the page: a certificate
+  // is only shown to the student after it has been sent. An uploaded,
+  // held, queued, or failed certificate is replaced with null, so the
+  // student page cannot show a download for it, even if the page code
+  // is changed later.
+  const safe = registrations.map((r) => ({
+    ...r,
+    certificate: r.certificate && r.certificate.status === "SENT" ? r.certificate : null,
+  }));
+  return ok({ registrations: safe });
 }
