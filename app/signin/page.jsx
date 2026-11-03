@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import BrandLogo from "@/components/BrandLogo";
 
 function SignInContent() {
   const params = useSearchParams();
@@ -15,6 +16,9 @@ function SignInContent() {
         : "";
   return (
     <div>
+      <div className="signin-brand">
+        <BrandLogo className="signin-brand__logo" priority />
+      </div>
       <h1>Sign in</h1>
       <p>Sign in with your college account. Only @vvce.ac.in accounts can sign in.</p>
       {message && <p className="error">{message}</p>}
