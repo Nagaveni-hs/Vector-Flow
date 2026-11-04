@@ -46,7 +46,7 @@ export default function EventForm({ initial, eventId }) {
     if (!eventId) window.location.href = "/admin";
   }
   return (
-    <form onSubmit={submit}>
+    <form className="event-form" onSubmit={submit}>
       <label>Title<input value={form.title} onChange={(e) => set("title", e.target.value)} required /></label>
       <label>Slug (letters, numbers, and dashes only)<input value={form.slug} onChange={(e) => set("slug", e.target.value)} required /></label>
       <label>Description<textarea value={form.description} onChange={(e) => set("description", e.target.value)} required /></label>

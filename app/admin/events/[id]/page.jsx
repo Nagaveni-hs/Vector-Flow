@@ -75,10 +75,10 @@ export default function EditEvent({ params }) {
   if (error) return <p className="error">{error}</p>;
   if (!initial) return <p>Loading...</p>;
   return (
-    <div>
+    <div className="admin-content-page event-edit-page">
       <h1>Edit event</h1>
       <EventForm initial={initial} eventId={params.id} />
-      <div className="card">
+      <section className="card announcement-panel">
         <h2>Announcement mail</h2>
         <p>Editing this event afterwards does not send the announcement again.</p>
         {!preview && <p>Loading preview...</p>}
@@ -100,7 +100,7 @@ export default function EditEvent({ params }) {
           </div>
         )}
         {announceMessage && <p>{announceMessage}</p>}
-      </div>
+      </section>
     </div>
   );
 }

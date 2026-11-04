@@ -85,14 +85,9 @@ export default function Home() {
         </div>
 
         <div className="home-hero__visual">
-          <div className="home-hero__orbit home-hero__orbit--outer" aria-hidden="true" />
-          <div className="home-hero__orbit home-hero__orbit--inner" aria-hidden="true" />
           <div className="home-hero__logo-frame">
             <BrandLogo className="home-hero__logo" priority />
           </div>
-          <span className="home-hero__spark home-hero__spark--one" aria-hidden="true">✦</span>
-          <span className="home-hero__spark home-hero__spark--two" aria-hidden="true">✧</span>
-          <span className="home-hero__visual-label">Technology · Creativity · Community</span>
         </div>
       </section>
 
@@ -201,7 +196,6 @@ export default function Home() {
             <h3>Learn by exploring</h3>
             <p>Make space for questions, new ideas, and learning beyond the classroom.</p>
           </div>
-          <span className="home-highlight__symbol" aria-hidden="true">⌘</span>
         </article>
         <article className="home-highlight">
           <span className="home-highlight__number">02</span>
@@ -209,7 +203,6 @@ export default function Home() {
             <h3>Build with purpose</h3>
             <p>Turn concepts into hands-on experiments, projects, and shared progress.</p>
           </div>
-          <span className="home-highlight__symbol" aria-hidden="true">↗</span>
         </article>
         <article className="home-highlight">
           <span className="home-highlight__number">03</span>
@@ -217,7 +210,6 @@ export default function Home() {
             <h3>Grow as a community</h3>
             <p>Connect with people who are excited to create, contribute, and improve.</p>
           </div>
-          <span className="home-highlight__symbol" aria-hidden="true">◎</span>
         </article>
       </section>
 
