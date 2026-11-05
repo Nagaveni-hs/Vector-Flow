@@ -38,30 +38,49 @@ export default function Team() {
   if (loading) return <p>Loading...</p>;
   if (error) return <p className="error">{error}</p>;
   return (
-    <div>
-      <h1>Team</h1>
-      {data.years.length > 0 && (
-        <label>
-          Year
-          <select value={year} onChange={(e) => load(e.target.value)}>
-            {data.years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      <p>Showing team for {data.year || "no year yet"}.</p>
-      {data.members.length === 0 && <p>No team members listed for this year yet.</p>}
-      {data.members.map((m) => (
-        <div className="card" key={m.id}>
-          {m.photoUrl && <img src={m.photoUrl} alt={m.name} />}
-          <h2>{m.name}</h2>
-          <p>{m.designation}</p>
-          {m.bio && <p>{m.bio}</p>}
+    <div className="content-page team-page">
+      <header className="page-heading page-heading--split">
+        <div>
+          <p className="page-eyebrow">The people behind the club</p>
+          <h1>Our team</h1>
+          <p>Meet the students who make Vector Flow happen.</p>
         </div>
-      ))}
+        {data.years.length > 0 && (
+          <label className="team-year-control">
+            Year
+            <select value={year} onChange={(e) => load(e.target.value)}>
+              {data.years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </header>
+      <p className="team-page__year">Showing team for {data.year || "no year yet"}.</p>
+      {data.members.length === 0 ? (
+        <p className="empty-state">No team members listed for this year yet.</p>
+      ) : (
+        <div className="team-grid">
+          {data.members.map((m) => (
+            <article className="card team-card" key={m.id}>
+              {m.photoUrl ? (
+                <img className="team-card__photo" src={m.photoUrl} alt={m.name} />
+              ) : (
+                <div className="team-card__photo team-card__photo--empty" aria-hidden="true">
+                  {m.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2)}
+                </div>
+              )}
+              <div>
+                <h2>{m.name}</h2>
+                <p className="team-card__designation">{m.designation}</p>
+                {m.bio && <p className="team-card__bio">{m.bio}</p>}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

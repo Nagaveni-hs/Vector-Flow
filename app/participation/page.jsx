@@ -66,42 +66,57 @@ export default function Participation() {
   if (loading) return <p>Loading...</p>;
   if (error) {
     return (
-      <div>
-        <h1>Participation</h1>
-        <p>{error}</p>
-        <Link href="/signin">Sign in</Link>
+      <div className="content-page participation-page">
+        <header className="page-heading">
+          <p className="page-eyebrow">Your activity</p>
+          <h1>Participation</h1>
+          <p>{error}</p>
+        </header>
+        <Link className="signin-page__button" href="/signin">Sign in</Link>
       </div>
     );
   }
   return (
-    <div>
-      <h1>Participation</h1>
-      {message && <p>{message}</p>}
-      {registrations.length === 0 && <p>No registrations yet.</p>}
-      {registrations.length === 0 && <p>No certificates yet.</p>}
+    <div className="content-page participation-page">
+      <header className="page-heading">
+        <p className="page-eyebrow">Your activity</p>
+        <h1>Participation</h1>
+        <p>Your registrations, payment updates, and certificates in one place.</p>
+      </header>
+      {message && <p className="status-message" role="status">{message}</p>}
+      {registrations.length === 0 && (
+        <div className="empty-state">
+          <h2>No registrations yet</h2>
+          <p>Events you register for will appear here.</p>
+          <p>No certificates yet.</p>
+          <Link href="/">Explore upcoming events</Link>
+        </div>
+      )}
       {registrations.map((r) => (
-        <div className="card" key={r.id}>
+        <article className="card participation-card" key={r.id}>
           <h2>
             <Link href={`/events/${r.event.slug}`}>{r.event.title}</Link>
           </h2>
-          <p>
+          <p className="participation-card__meta">
             {r.event.startAt && new Date(r.event.startAt).toLocaleString()} -{" "}
             {r.event.feeType === "PAID" ? `Rs ${r.event.feeAmount}` : "Free"}
           </p>
-          <p>Payment: {r.paymentStatus} - Attendance: {r.attendance} - Status: {r.status}</p>
+          <div className="participation-card__statuses">
+            <span>Payment <strong>{r.paymentStatus.replaceAll("_", " ")}</strong></span>
+            <span>Attendance <strong>{r.attendance}</strong></span>
+            <span>Status <strong>{r.status}</strong></span>
+          </div>
           {r.paymentStatus === "REJECTED" && (
-            <div>
+            <div className="participation-card__notice">
               <p>Your payment was rejected. Reason: {r.rejectionReason || "No reason was given."}</p>
               <p>Please upload a new payment screenshot. Check the receiver and amount on the event page first.</p>
               <FileUpload folder="vector-flow/screenshots" label="Upload new payment screenshot" onUploaded={(url) => reupload(r, url)} />
             </div>
           )}
           {r.certificate && r.certificate.status === "SENT" && (
-            <p>
-              <button onClick={() => downloadCertificate(r)}>Download certificate</button>
-            </p>
+            <button type="button" onClick={() => downloadCertificate(r)}>Download certificate</button>
           )}
-        </div>
+        </article>
       ))}
     </div>
   );

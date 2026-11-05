@@ -59,7 +59,7 @@ export default function Checks() {
 
   if (loading) return <p>Loading...</p>;
   return (
-    <div>
+    <div className="admin-content-page checks-page">
       <h1>Local checks</h1>
       <p>These checks run locally only. They do not prove anything about a live production site, because this site is not deployed yet.</p>
       {results.map((c) => (
