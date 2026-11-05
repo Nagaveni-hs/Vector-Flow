@@ -15,7 +15,8 @@ export async function GET() {
     });
     return ok({ events });
   } catch {
-    return ok({ events: [] });
+    console.error("Could not load public events.");
+    return fail("EVENTS_UNAVAILABLE", 500);
   }
 }
 

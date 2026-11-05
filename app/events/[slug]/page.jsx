@@ -15,12 +15,20 @@ const HUMAN = {
   INVALID_FILE: "Please check the form and try again.",
 };
 
+function formatEventDate(value, options) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("en-IN", options).format(date);
+}
+
 export default function EventDetail({ params }) {
   const [event, setEvent] = useState(null);
   const [user, setUser] = useState(null);
   const [error, setError] = useState("");
   const [form, setForm] = useState({ name: "", usn: "", email: "", branch: "", semester: "", phone: "", paymentScreenshotUrl: "" });
   const [message, setMessage] = useState("");
+
   useEffect(() => {
     fetch(`/api/events/${params.slug}`)
       .then((r) => r.json())
@@ -47,9 +55,11 @@ export default function EventDetail({ params }) {
       })
       .catch(() => {});
   }, [params.slug]);
+
   function set(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
   }
+
   async function register(e) {
     e.preventDefault();
     setMessage("");
@@ -69,57 +79,263 @@ export default function EventDetail({ params }) {
     }
     setMessage("You are registered. You can see this event on Participation.");
   }
-  if (error) return <p className="error">{error}</p>;
-  if (!event) return <p>Loading...</p>;
+
+  if (error) {
+    return (
+      <div className="event-detail-state">
+        <p className="event-detail-eyebrow">Event</p>
+        <h1>This event could not be found.</h1>
+        <Link className="event-detail-back" href="/">← Back to Vector Flow</Link>
+      </div>
+    );
+  }
+  if (!event) {
+    return (
+      <div className="event-detail-state" aria-live="polite">
+        <span className="event-detail-loading-mark" aria-hidden="true" />
+        <p>Loading event details…</p>
+      </div>
+    );
+  }
+
+  const eventDate = formatEventDate(event.startAt, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const eventTime = formatEventDate(event.startAt, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const eventEndTime = formatEventDate(event.endAt, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const eventEndDate = formatEventDate(event.endAt, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  const endsOnDifferentDay =
+    event.startAt &&
+    event.endAt &&
+    new Date(event.startAt).toDateString() !== new Date(event.endAt).toDateString();
+  const feeLabel = event.feeType === "PAID" ? `Rs ${event.feeAmount}` : "Free";
+  const registrationHref = event.registrationMode === "EXTERNAL"
+    ? event.externalRegistrationUrl
+    : user
+      ? "#event-registration"
+      : "/signin";
+
   return (
-    <div>
-      {event.posterImageUrl && <img src={event.posterImageUrl} alt={event.title} />}
-      <h1>{event.title}</h1>
-      <p>
-        <StatusBadge value={event.feeType === "PAID" ? `Rs ${event.feeAmount}` : "Free"} />
-        <StatusBadge value={event.status} />
-      </p>
-      <p>{event.description}</p>
-      <p>
-        {event.startAt && new Date(event.startAt).toLocaleString()}
-        {event.venue ? ` - ${event.venue}` : ""} - {event.mode}
-      </p>
-      {event.feeType === "PAID" && (
-        <div className="card">
-          <p>Pay to: {event.paymentReceiverName} ({event.paymentReceiverContact})</p>
-          <p>Amount: Rs {event.feeAmount}</p>
-          {event.paymentQrImageUrl && <img src={event.paymentQrImageUrl} alt="Payment QR" />}
-        </div>
-      )}
-      {event.registrationMode === "EXTERNAL" ? (
-        <p>
-          <a href={event.externalRegistrationUrl} target="_blank" rel="noreferrer">
-            Register on the external form
-          </a>
-        </p>
-      ) : !user ? (
-        <p>
-          <Link href="/signin">Sign in</Link> to register.
-        </p>
-      ) : (
-        <form onSubmit={register}>
-          <h2>Register</h2>
-          <label>Name<input value={form.name} onChange={(e) => set("name", e.target.value)} required /></label>
-          <label>USN<input value={form.usn} onChange={(e) => set("usn", e.target.value)} required /></label>
-          <label>College email<input value={form.email} onChange={(e) => set("email", e.target.value)} required /></label>
-          <label>Branch<input value={form.branch} onChange={(e) => set("branch", e.target.value)} /></label>
-          <label>Semester<input type="number" value={form.semester} onChange={(e) => set("semester", e.target.value)} /></label>
-          <label>Phone (optional)<input value={form.phone} onChange={(e) => set("phone", e.target.value)} /></label>
-          {event.feeType === "PAID" && (
-            <>
-              <FileUpload folder="vector-flow/screenshots" label="Payment screenshot" onUploaded={(url) => set("paymentScreenshotUrl", url)} />
-              {form.paymentScreenshotUrl && <p>Screenshot uploaded.</p>}
-            </>
+    <article className="event-detail">
+      <Link className="event-detail-back" href="/">
+        <span aria-hidden="true">←</span> All events
+      </Link>
+
+      <section className="event-detail-hero" aria-labelledby="event-title">
+        <div className="event-detail-hero__poster">
+          {event.posterImageUrl ? (
+            <img src={event.posterImageUrl} alt={`${event.title} event poster`} />
+          ) : (
+            <div className="event-detail-hero__poster-placeholder" aria-hidden="true">
+              <span>VECTOR FLOW</span>
+              <span>EVENT</span>
+            </div>
           )}
-          <button type="submit">Register</button>
-          {message && <p>{message}</p>}
-        </form>
-      )}
-    </div>
+        </div>
+
+        <div className="event-detail-hero__content">
+          <p className="event-detail-eyebrow">
+            <span className="event-detail-eyebrow__dot" aria-hidden="true" />
+            VVCE · CSE (AI &amp; ML)
+          </p>
+          <div className="event-detail-badges">
+            <StatusBadge value={feeLabel} />
+            <StatusBadge value={event.status} />
+          </div>
+          <h1 id="event-title">{event.title}</h1>
+          <p className="event-detail-hero__description">{event.description}</p>
+
+          <div className="event-detail-hero__facts">
+            <div className="event-detail-fact">
+              <span className="event-detail-fact__icon" aria-hidden="true">◷</span>
+              <span>
+                <strong>{eventDate || "Date to be announced"}</strong>
+                <span>
+                  {eventTime || "Time to be announced"}
+                  {eventEndTime ? ` – ${eventEndTime}` : ""}
+                  {endsOnDifferentDay && eventEndDate ? ` · ends ${eventEndDate}` : ""}
+                </span>
+              </span>
+            </div>
+            <div className="event-detail-fact">
+              <span className="event-detail-fact__icon" aria-hidden="true">⌖</span>
+              <span>
+                <strong>{event.venue || (event.mode === "ONLINE" ? "Online event" : "Venue to be announced")}</strong>
+                <span>{event.mode === "ONLINE" ? "Online" : "On campus"}</span>
+              </span>
+            </div>
+            <div className="event-detail-fact">
+              <span className="event-detail-fact__icon" aria-hidden="true">₹</span>
+              <span>
+                <strong>{feeLabel}</strong>
+                <span>{event.feeType === "PAID" ? "Participation fee" : "No participation fee"}</span>
+              </span>
+            </div>
+          </div>
+
+          <a
+            className="event-detail-cta"
+            href={registrationHref}
+            target={event.registrationMode === "EXTERNAL" ? "_blank" : undefined}
+            rel={event.registrationMode === "EXTERNAL" ? "noreferrer" : undefined}
+          >
+            {event.registrationMode === "EXTERNAL"
+              ? "Register on external form"
+              : user
+                ? "Register for this event"
+                : "Sign in to register"}
+            <span aria-hidden="true">→</span>
+          </a>
+        </div>
+      </section>
+
+      <div className="event-detail-layout">
+        <div className="event-detail-main">
+          <section className="event-detail-section" aria-labelledby="event-about-title">
+            <p className="event-detail-section__eyebrow">The experience</p>
+            <h2 id="event-about-title">About this event</h2>
+            <div className="event-detail-description">
+              {event.description.split(/\n{2,}/).map((paragraph, index) => (
+                <p key={`${index}-${paragraph}`}>{paragraph}</p>
+              ))}
+            </div>
+          </section>
+
+          {event.feeType === "PAID" && (
+            <section className="event-payment-card" aria-labelledby="payment-title">
+              <div className="event-payment-card__heading">
+                <span className="event-payment-card__icon" aria-hidden="true">₹</span>
+                <div>
+                  <p className="event-detail-section__eyebrow">Payment details</p>
+                  <h2 id="payment-title">Complete your payment</h2>
+                </div>
+              </div>
+              <p className="event-payment-card__intro">
+                Pay the event fee using the details below, then upload your payment screenshot in the registration form.
+              </p>
+              <div className="event-payment-card__details">
+                <div>
+                  <span>Amount</span>
+                  <strong>Rs {event.feeAmount}</strong>
+                </div>
+                <div>
+                  <span>Pay to</span>
+                  <strong>{event.paymentReceiverName}</strong>
+                </div>
+                <div>
+                  <span>Contact</span>
+                  <strong>{event.paymentReceiverContact}</strong>
+                </div>
+              </div>
+              {event.paymentQrImageUrl && (
+                <div className="event-payment-card__qr">
+                  <img src={event.paymentQrImageUrl} alt={`Payment QR code for ${event.title}`} />
+                  <p>Scan the QR code with your UPI app.</p>
+                </div>
+              )}
+            </section>
+          )}
+        </div>
+
+        <aside className="event-registration-card" id="event-registration" aria-labelledby="registration-title">
+          <div className="event-registration-card__heading">
+            <p className="event-detail-section__eyebrow">Be part of it</p>
+            <h2 id="registration-title">
+              {event.registrationMode === "EXTERNAL"
+                ? "Ready to join?"
+                : user
+                  ? "Save your spot"
+                  : "Join this event"}
+            </h2>
+            <p>
+              {event.registrationMode === "EXTERNAL"
+                ? "Continue to the event registration form."
+                : user
+                  ? "Add your details below to register."
+                  : "Sign in with your college account to register."}
+            </p>
+          </div>
+
+          {event.registrationMode === "EXTERNAL" ? (
+            <a className="event-registration-submit" href={event.externalRegistrationUrl} target="_blank" rel="noreferrer">
+              Register on the external form <span aria-hidden="true">↗</span>
+            </a>
+          ) : !user ? (
+            <Link className="event-registration-submit" href="/signin">
+              Sign in to register <span aria-hidden="true">→</span>
+            </Link>
+          ) : (
+            <form className="event-registration-form" onSubmit={register}>
+              <div className="event-registration-form__grid">
+                <label>
+                  Name
+                  <input value={form.name} onChange={(e) => set("name", e.target.value)} required autoComplete="name" />
+                </label>
+                <label>
+                  USN
+                  <input value={form.usn} onChange={(e) => set("usn", e.target.value)} required autoComplete="off" />
+                </label>
+                <label className="event-registration-form__wide">
+                  College email
+                  <input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} required autoComplete="email" />
+                </label>
+                <label>
+                  Branch
+                  <input value={form.branch} onChange={(e) => set("branch", e.target.value)} autoComplete="organization-title" />
+                </label>
+                <label>
+                  Semester
+                  <input type="number" value={form.semester} onChange={(e) => set("semester", e.target.value)} min="1" max="12" inputMode="numeric" />
+                </label>
+                <label className="event-registration-form__wide">
+                  Phone <span className="event-registration-form__optional">(optional)</span>
+                  <input type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} autoComplete="tel" />
+                </label>
+              </div>
+
+              {event.feeType === "PAID" && (
+                <div className="event-registration-form__upload">
+                  <FileUpload
+                    folder="vector-flow/screenshots"
+                    label="Payment screenshot"
+                    onUploaded={(url) => set("paymentScreenshotUrl", url)}
+                  />
+                  {form.paymentScreenshotUrl && (
+                    <p className="event-registration-form__upload-success" role="status">
+                      Screenshot uploaded and ready to submit.
+                    </p>
+                  )}
+                  <p className="event-registration-form__hint">
+                    Upload a clear image of your payment confirmation, up to 5 MB.
+                  </p>
+                </div>
+              )}
+
+              <button className="event-registration-submit" type="submit">
+                Register for this event <span aria-hidden="true">→</span>
+              </button>
+              {message && (
+                <p className={`event-registration-message${message.startsWith("You are registered") ? " is-success" : ""}`} role="status">
+                  {message}
+                </p>
+              )}
+            </form>
+          )}
+        </aside>
+      </div>
+    </article>
   );
 }

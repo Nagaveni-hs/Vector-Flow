@@ -70,9 +70,9 @@ export default function Attendance({ params }) {
   if (error) return <p className="error">{error}</p>;
   if (!event) return <p>Loading...</p>;
   return (
-    <div>
+    <div className="admin-content-page attendance-page">
       <h1>Attendance for {event.title}</h1>
-      <p>
+      <p className="attendance-summary">
         You marked {present} Present, {absent} Absent, {unmarked} unmarked.
         {unmarked > 0 ? " Please check the unmarked rows before you save." : ""}
       </p>

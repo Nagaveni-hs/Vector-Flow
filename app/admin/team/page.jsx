@@ -153,12 +153,12 @@ export default function TeamAdmin() {
   if (loading) return <p>Loading...</p>;
   if (error) return <p className="error">{error}</p>;
   return (
-    <div>
+    <div className="admin-content-page team-admin-page">
       <h1>Team admin</h1>
       <p>Live team year now: {liveYear}. Preparing a draft never changes the live team until you press Publish.</p>
-      {message && <p>{message}</p>}
+      {message && <p className="status-message" role="status">{message}</p>}
       <h2>{editing ? "Edit member" : "Add member"}</h2>
-      <form onSubmit={saveMember}>
+      <form className="team-admin-form" onSubmit={saveMember}>
         <label>Name<input value={form.name} onChange={(e) => set("name", e.target.value)} required /></label>
         <label>Designation<input value={form.designation} onChange={(e) => set("designation", e.target.value)} required /></label>
         <FileUpload folder="vector-flow/team" label="Photo" onUploaded={(url) => set("photoUrl", url)} />
@@ -188,7 +188,7 @@ export default function TeamAdmin() {
         <button onClick={publishYear} disabled={!draftYear}>Publish this year</button>
       </p>
       {preview && (
-        <div className="card">
+        <div className="card team-admin-preview">
           <h3>Preview for {preview.year}</h3>
           <p>Live year now: {preview.liveYear || "none"}. Publishing {preview.year} will make it live and move the old live team to History.</p>
           {preview.draft.length === 0 && <p>No members in this draft year yet.</p>}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import BrandLogo from "@/components/BrandLogo";
 
 function SignInContent() {
   const params = useSearchParams();
@@ -14,13 +15,18 @@ function SignInContent() {
         ? "Sign-in did not complete. Please try again."
         : "";
   return (
-    <div>
+    <div className="signin-page">
+      <div className="signin-brand">
+        <BrandLogo className="signin-brand__logo" priority />
+      </div>
+      <p className="page-eyebrow">Welcome to Vector Flow</p>
       <h1>Sign in</h1>
-      <p>Sign in with your college account. Only @vvce.ac.in accounts can sign in.</p>
+      <p className="signin-page__description">Use your college account to register for events and follow your participation.</p>
       {message && <p className="error">{message}</p>}
-      <p>
-        <Link href="/api/auth/login">Sign in with Google</Link>
-      </p>
+      <Link className="signin-page__button" href="/api/auth/login">
+        Continue with Google <span aria-hidden="true">→</span>
+      </Link>
+      <p className="signin-page__note">Only @vvce.ac.in accounts can sign in.</p>
     </div>
   );
 }
