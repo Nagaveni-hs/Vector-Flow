@@ -93,24 +93,30 @@ export default function Admin() {
   if (loading) return <p>Loading...</p>;
   if (error) {
     return (
-      <div>
+      <div className="admin-content-page">
         <h1>Admin</h1>
         <p>{error}</p>
       </div>
     );
   }
   return (
-    <div>
-      <h1>Admin</h1>
-      <p>
-        <Link href="/admin/events/new">Create a new event</Link> |{" "}
-        <Link href="/admin/team">Team admin</Link> |{" "}
-        <Link href="/admin/handover">Admin handover note</Link> |{" "}
+    <div className="admin-content-page admin-dashboard">
+      <header className="page-heading page-heading--split">
+        <div>
+          <p className="page-eyebrow">Club operations</p>
+          <h1>Admin dashboard</h1>
+          <p>Manage events, registrations, attendance, and certificates.</p>
+        </div>
+      </header>
+      <nav className="admin-dashboard__quick-links" aria-label="Admin shortcuts">
+        <Link href="/admin/events/new">Create a new event</Link>
+        <Link href="/admin/team">Team admin</Link>
+        <Link href="/admin/handover">Admin handover note</Link>
         <Link href="/admin/checks">Local checks</Link>
-      </p>
-      {events.length === 0 && <p>No events yet.</p>}
+      </nav>
+      {events.length === 0 && <p className="empty-state">No events yet.</p>}
       {events.map((event) => (
-        <div className="card" key={event.id}>
+        <article className="card admin-event-card" key={event.id}>
           <h2>{event.title}</h2>
           <p>
             {event.status} - {event.counts ? event.counts.total : event._count ? event._count.registrations : 0} registrations
@@ -128,11 +134,11 @@ export default function Admin() {
             <Link href={`/admin/events/${event.id}/attendance`}>Attendance</Link>{" "}
             <Link href={`/admin/events/${event.id}/certificates`}>Certificates</Link>
           </p>
-        </div>
+        </article>
       ))}
       {selected && (
-        <div>
-          <h2>Registrations for {selected.title}</h2>
+        <section className="admin-registrations" aria-labelledby="admin-registrations-title">
+          <h2 id="admin-registrations-title">Registrations for {selected.title}</h2>
           <p>
             Before you press Verify, check the payment screenshot against this event's receiver name and
             amount: {selected.paymentReceiverName || "No receiver set"} ({selected.paymentReceiverContact || "No contact set"})
@@ -221,7 +227,7 @@ export default function Admin() {
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
       )}
       {screenshot && (
         <div className="modal">
