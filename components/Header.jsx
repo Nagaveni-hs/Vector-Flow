@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import BrandLogo from "@/components/BrandLogo";
 
 export default function Header() {
   const [user, setUser] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
+
   useEffect(() => {
     fetch("/api/auth/me")
       .then((r) => r.json())
@@ -17,6 +18,37 @@ export default function Header() {
       })
       .catch(() => {});
   }, []);
+
+  // Automatically close menu when navigating to another route
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  // Handle escape key and body scroll lock when mobile overlay is active
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === "Escape" && menuOpen) {
+        setMenuOpen(false);
+      }
+    }
+
+    if (menuOpen) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+    } else {
+      document.body.style.overflow = "";
+    }
+
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [menuOpen]);
+
+  const closeMenu = useCallback(() => {
+    setMenuOpen(false);
+  }, []);
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/";
@@ -30,7 +62,7 @@ export default function Header() {
   return (
     <header className="site-header">
       <div className="site-header__inner">
-        <Link className="site-brand" href="/" aria-label="Vector Flow home" onClick={() => setMenuOpen(false)}>
+        <Link className="site-brand" href="/" aria-label="Vector Flow home" onClick={closeMenu}>
           <BrandLogo className="site-brand__logo" priority />
           <span className="site-brand__copy">
             <strong>Vector Flow</strong>
@@ -46,38 +78,73 @@ export default function Header() {
           aria-controls="site-navigation"
           onClick={() => setMenuOpen((open) => !open)}
         >
-          <span aria-hidden="true">{menuOpen ? "×" : "☰"}</span>
+          <span aria-hidden="true">{menuOpen ? "✕" : "☰"}</span>
         </button>
 
+        {/* Semi-transparent navy/slate backdrop: bg-slate-900/60 backdrop-blur-sm */}
+        <div
+          className={`site-nav-backdrop${menuOpen ? " is-open" : ""}`}
+          onClick={closeMenu}
+          aria-hidden="true"
+        />
+
+        {/* Floating/sliding overlay drawer on mobile */}
         <nav
           className={`site-nav${menuOpen ? " is-open" : ""}`}
           id="site-navigation"
           aria-label="Main navigation"
         >
+          {/* Drawer header with brand slate/navy accents and 'X' close button */}
+          <div className="site-drawer__header">
+            <div className="site-drawer__brand">
+              <BrandLogo className="site-drawer__logo" />
+              <div className="site-drawer__copy">
+                <strong>Vector Flow</strong>
+                <span>Navigation</span>
+              </div>
+            </div>
+            <button
+              className="site-drawer__close"
+              type="button"
+              aria-label="Close navigation menu"
+              onClick={closeMenu}
+            >
+              <span aria-hidden="true">✕</span>
+            </button>
+          </div>
+
           <div className="site-nav__links">
-            <Link className={navLinkClass("/")} href="/" aria-current={pathname === "/" ? "page" : undefined} onClick={() => setMenuOpen(false)}>
-              Home
+            <Link className={navLinkClass("/")} href="/" aria-current={pathname === "/" ? "page" : undefined} onClick={closeMenu}>
+              <span>Home</span>
             </Link>
-            <Link className={navLinkClass("/gallery")} href="/gallery" aria-current={pathname.startsWith("/gallery") ? "page" : undefined} onClick={() => setMenuOpen(false)}>
-              Gallery
+            <Link className={navLinkClass("/gallery")} href="/gallery" aria-current={pathname.startsWith("/gallery") ? "page" : undefined} onClick={closeMenu}>
+              <span>Gallery</span>
             </Link>
-            <Link className={navLinkClass("/team")} href="/team" aria-current={pathname.startsWith("/team") ? "page" : undefined} onClick={() => setMenuOpen(false)}>
-              Team
+            <Link className={navLinkClass("/team")} href="/team" aria-current={pathname.startsWith("/team") ? "page" : undefined} onClick={closeMenu}>
+              <span>Team</span>
             </Link>
-            <Link className={navLinkClass("/participation")} href="/participation" aria-current={pathname.startsWith("/participation") ? "page" : undefined} onClick={() => setMenuOpen(false)}>
-              Participation
+            <Link className={navLinkClass("/participation")} href="/participation" aria-current={pathname.startsWith("/participation") ? "page" : undefined} onClick={closeMenu}>
+              <span>Participation</span>
             </Link>
             {user && user.role === "ADMIN" && (
-              <Link className={navLinkClass("/admin")} href="/admin" aria-current={pathname.startsWith("/admin") ? "page" : undefined} onClick={() => setMenuOpen(false)}>
-                Admin
+              <Link className={navLinkClass("/admin")} href="/admin" aria-current={pathname.startsWith("/admin") ? "page" : undefined} onClick={closeMenu}>
+                <span>Admin</span>
               </Link>
             )}
           </div>
+
           <div className="site-nav__account">
             {user ? (
               <>
                 <span className="site-nav__user" title={user.name}>{user.name}</span>
-                <button className="site-nav__signout" type="button" onClick={logout}>
+                <button
+                  className="site-nav__signout"
+                  type="button"
+                  onClick={() => {
+                    closeMenu();
+                    logout();
+                  }}
+                >
                   Sign out
                 </button>
               </>
@@ -86,7 +153,7 @@ export default function Header() {
                 className="site-nav__signin"
                 href="/signin"
                 aria-current={pathname.startsWith("/signin") ? "page" : undefined}
-                onClick={() => setMenuOpen(false)}
+                onClick={closeMenu}
               >
                 Sign in
               </Link>

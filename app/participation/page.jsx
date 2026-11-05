@@ -1,30 +1,49 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import FileUpload from "@/components/FileUpload";
 
-// Sprint 3 and 4 changes to Participation, surgical only:
-// 1. If a payment was rejected, the student sees the reason and can
-//    upload a new screenshot here, which sends the payment back for
-//    review. No other registration field can be changed here.
-// 2. A certificate download button appears only after a certificate
-//    has been sent. Uploaded, held, queued, or failed certificates
-//    show no download button at all, because the server also hides
-//    them from this page's data.
+function formatEventDate(value) {
+  if (!value) return "Date to be announced";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Date to be announced";
+  return new Intl.DateTimeFormat("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
 export default function Participation() {
+  const [user, setUser] = useState(null);
   const [registrations, setRegistrations] = useState([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("attended");
+  const [viewingCert, setViewingCert] = useState(null);
+  const [viewerLoading, setViewerLoading] = useState(false);
 
   function load() {
-    fetch("/api/me/registrations")
-      .then((r) => r.json())
-      .then((j) => {
+    // Load student profile & registrations in parallel
+    Promise.all([
+      fetch("/api/auth/me").then((r) => r.json()).catch(() => null),
+      fetch("/api/me/registrations").then((r) => r.json()),
+    ])
+      .then(([authRes, regRes]) => {
         setLoading(false);
-        if (j.ok) setRegistrations(j.data.registrations);
-        else setError("Please sign in to see your participation.");
+        if (authRes && authRes.ok) {
+          setUser(authRes.data.user);
+        }
+        if (regRes && regRes.ok) {
+          setRegistrations(regRes.data.registrations);
+        } else {
+          setError("Please sign in to see your participation.");
+        }
       })
       .catch(() => {
         setLoading(false);
@@ -35,6 +54,25 @@ export default function Participation() {
   useEffect(() => {
     load();
   }, []);
+
+  // Handle escape key and scroll lock for certificate viewer modal
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === "Escape" && viewingCert) {
+        setViewingCert(null);
+      }
+    }
+    if (viewingCert) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [viewingCert]);
 
   async function reupload(registration, url) {
     setMessage("");
@@ -54,16 +92,50 @@ export default function Participation() {
 
   async function downloadCertificate(registration) {
     setMessage("");
-    const res = await fetch(`/api/certificates/${registration.certificate.id}/download`);
-    const json = await res.json();
-    if (!json.ok) {
-      setMessage("Certificate download is not available yet.");
-      return;
+    try {
+      const res = await fetch(`/api/certificates/${registration.certificate.id}/download`);
+      const json = await res.json();
+      if (!json.ok || !json.data?.downloadUrl) {
+        setMessage("Certificate download is not available yet.");
+        return;
+      }
+      // Create temporary anchor to initiate direct download
+      const a = document.createElement("a");
+      a.href = json.data.downloadUrl;
+      a.target = "_blank";
+      a.rel = "noreferrer";
+      a.download = `${(registration.event?.title || "Event").replace(/[^a-zA-Z0-9_-]/g, "_")}_Certificate.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch {
+      setMessage("Could not download the certificate right now. Please try again.");
     }
-    window.open(json.data.downloadUrl, "_blank");
+  }
+
+  async function viewCertificate(registration) {
+    setMessage("");
+    setViewerLoading(true);
+    setViewingCert({ registration, url: null });
+    try {
+      const res = await fetch(`/api/certificates/${registration.certificate.id}/download`);
+      const json = await res.json();
+      if (!json.ok || !json.data?.downloadUrl) {
+        setMessage("Certificate is not ready for viewing yet.");
+        setViewingCert(null);
+        return;
+      }
+      setViewingCert({ registration, url: json.data.downloadUrl });
+    } catch {
+      setMessage("Could not load the certificate viewer. Please try again.");
+      setViewingCert(null);
+    } finally {
+      setViewerLoading(false);
+    }
   }
 
   if (loading) return <p>Loading...</p>;
+
   if (error) {
     return (
       <div className="content-page participation-page">
@@ -76,14 +148,64 @@ export default function Participation() {
       </div>
     );
   }
+
+  const attendedRegistrations = registrations.filter((r) => r.attendance === "PRESENT");
+  const sentCertificates = registrations.filter((r) => r.certificate && r.certificate.status === "SENT");
+
   return (
     <div className="content-page participation-page">
       <header className="page-heading">
-        <p className="page-eyebrow">Your activity</p>
-        <h1>Participation</h1>
-        <p>Your registrations, payment updates, and certificates in one place.</p>
+        <p className="page-eyebrow">Student Dashboard</p>
+        <h1>Participation &amp; Certificates</h1>
+        <p>Your registrations, verified attendance, and E-Participation Certificates in one place.</p>
       </header>
+
       {message && <p className="status-message" role="status">{message}</p>}
+
+      {/* Student Profile Card */}
+      {user && (
+        <section className="participation-profile-card" aria-label="Student profile summary">
+          <div className="participation-profile-card__info">
+            <h2>{user.name}</h2>
+            <p>{user.email}</p>
+          </div>
+          <div className="participation-profile-card__tags">
+            {user.usn && <span className="participation-tag">USN: {user.usn}</span>}
+            {user.branch && <span className="participation-tag">{user.branch}</span>}
+            {user.semester && <span className="participation-tag">Sem {user.semester}</span>}
+            <span className="participation-tag">{user.role === "ADMIN" ? "Admin" : "Student"}</span>
+          </div>
+        </section>
+      )}
+
+      {/* Participation Metric Summary Stats */}
+      <section className="participation-stats" aria-label="Participation summary statistics">
+        <div className="participation-stat-card participation-stat-card--teal">
+          <div className="participation-stat-card__icon" aria-hidden="true">🎓</div>
+          <div>
+            <p className="participation-stat-card__value">{attendedRegistrations.length}</p>
+            <p className="participation-stat-card__label">Attended Events</p>
+          </div>
+        </div>
+
+        <div className="participation-stat-card participation-stat-card--purple">
+          <div className="participation-stat-card__icon" aria-hidden="true">📜</div>
+          <div>
+            <p className="participation-stat-card__value">{sentCertificates.length}</p>
+            <p className="participation-stat-card__label">E-Certificates Earned</p>
+          </div>
+        </div>
+
+        <div className="participation-stat-card">
+          <div className="participation-stat-card__icon" aria-hidden="true">📋</div>
+          <div>
+            <p className="participation-stat-card__value">{registrations.length}</p>
+            <p className="participation-stat-card__label">Total Registrations</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Global Empty State if student has 0 registrations */}
       {registrations.length === 0 && (
         <div className="empty-state">
           <h2>No registrations yet</h2>
@@ -92,32 +214,249 @@ export default function Participation() {
           <Link href="/">Explore upcoming events</Link>
         </div>
       )}
-      {registrations.map((r) => (
-        <article className="card participation-card" key={r.id}>
-          <h2>
-            <Link href={`/events/${r.event.slug}`}>{r.event.title}</Link>
-          </h2>
-          <p className="participation-card__meta">
-            {r.event.startAt && new Date(r.event.startAt).toLocaleString()} -{" "}
-            {r.event.feeType === "PAID" ? `Rs ${r.event.feeAmount}` : "Free"}
-          </p>
-          <div className="participation-card__statuses">
-            <span>Payment <strong>{r.paymentStatus.replaceAll("_", " ")}</strong></span>
-            <span>Attendance <strong>{r.attendance}</strong></span>
-            <span>Status <strong>{r.status}</strong></span>
-          </div>
-          {r.paymentStatus === "REJECTED" && (
-            <div className="participation-card__notice">
-              <p>Your payment was rejected. Reason: {r.rejectionReason || "No reason was given."}</p>
-              <p>Please upload a new payment screenshot. Check the receiver and amount on the event page first.</p>
-              <FileUpload folder="vector-flow/screenshots" label="Upload new payment screenshot" onUploaded={(url) => reupload(r, url)} />
+
+      {registrations.length > 0 && (
+        <>
+          {/* Navigation View Switcher */}
+          <nav className="participation-nav-tabs" aria-label="Participation dashboard views">
+            <button
+              type="button"
+              className={`participation-tab-button${activeTab === "attended" ? " is-active" : ""}`}
+              onClick={() => setActiveTab("attended")}
+              aria-current={activeTab === "attended" ? "true" : undefined}
+            >
+              Attended Events &amp; Certificates
+              <span className="participation-tab-pill">{attendedRegistrations.length}</span>
+            </button>
+            <button
+              type="button"
+              className={`participation-tab-button${activeTab === "all" ? " is-active" : ""}`}
+              onClick={() => setActiveTab("all")}
+              aria-current={activeTab === "all" ? "true" : undefined}
+            >
+              All Registrations
+              <span className="participation-tab-pill">{registrations.length}</span>
+            </button>
+          </nav>
+
+          {/* Tab 1: Attended Events Dashboard */}
+          {activeTab === "attended" && (
+            <div className="participation-section" aria-label="Attended events list">
+              {attendedRegistrations.length === 0 ? (
+                <div className="empty-state">
+                  <h2>No attended events yet</h2>
+                  <p>When you attend a Vector Flow event and attendance is recorded, it will be listed here.</p>
+                  <p>No certificates yet.</p>
+                  <button
+                    type="button"
+                    className="signin-page__button"
+                    onClick={() => setActiveTab("all")}
+                    style={{ marginTop: "12px", display: "inline-block" }}
+                  >
+                    View all registrations ({registrations.length})
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: "16px" }}>
+                  {attendedRegistrations.map((r) => (
+                    <article className="attended-card" key={r.id}>
+                      <div className="attended-card__header">
+                        <div>
+                          <h3>
+                            <Link href={`/events/${r.event.slug}`}>{r.event.title}</Link>
+                          </h3>
+                          <p className="attended-card__meta">
+                            <span>📅 {formatEventDate(r.event.startAt)}</span>
+                            {r.event.venue && <span>📍 {r.event.venue}</span>}
+                            <span>💳 {r.event.feeType === "PAID" ? `Rs ${r.event.feeAmount}` : "Free"}</span>
+                          </p>
+                        </div>
+                        <span className="attended-badge">
+                          <span aria-hidden="true">✓</span> Attended
+                        </span>
+                      </div>
+
+                      {/* E-Participation Certificate section */}
+                      {r.certificate && r.certificate.status === "SENT" ? (
+                        <div className="attended-card__certificate-box">
+                          <div className="attended-card__certificate-info">
+                            <span className="attended-card__certificate-icon" aria-hidden="true">📜</span>
+                            <div>
+                              <strong>E-Participation Certificate Ready</strong>
+                              <span>
+                                {r.certificate.emailedAt
+                                  ? `Issued on ${new Date(r.certificate.emailedAt).toLocaleDateString()}`
+                                  : "Verified and available"}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="attended-card__certificate-actions">
+                            <button
+                              type="button"
+                              className="btn-cert-view"
+                              onClick={() => viewCertificate(r)}
+                              title="View certificate preview"
+                            >
+                              <span aria-hidden="true">👁️</span> View Certificate
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-cert-download"
+                              onClick={() => downloadCertificate(r)}
+                              title="Download certificate PDF"
+                            >
+                              <span aria-hidden="true">⬇</span> Download Certificate
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="attended-card__certificate-pending">
+                          <span>⏳ Attendance marked Present · E-Certificate processing and will appear here once published.</span>
+                        </div>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-          {r.certificate && r.certificate.status === "SENT" && (
-            <button type="button" onClick={() => downloadCertificate(r)}>Download certificate</button>
+
+          {/* Tab 2: All Registrations List */}
+          {activeTab === "all" && (
+            <div className="participation-section" aria-label="All registered events">
+              <div style={{ display: "grid", gap: "16px" }}>
+                {registrations.map((r) => (
+                  <article className="card participation-card" key={r.id}>
+                    <h2>
+                      <Link href={`/events/${r.event.slug}`}>{r.event.title}</Link>
+                    </h2>
+                    <p className="participation-card__meta">
+                      {formatEventDate(r.event.startAt)} -{" "}
+                      {r.event.feeType === "PAID" ? `Rs ${r.event.feeAmount}` : "Free"}
+                      {r.event.venue ? ` · ${r.event.venue}` : ""}
+                    </p>
+                    <div className="participation-card__statuses">
+                      <span>Payment <strong>{r.paymentStatus.replaceAll("_", " ")}</strong></span>
+                      <span>Attendance <strong>{r.attendance}</strong></span>
+                      <span>Status <strong>{r.status}</strong></span>
+                    </div>
+
+                    {r.paymentStatus === "REJECTED" && (
+                      <div className="participation-card__notice">
+                        <p>Your payment was rejected. Reason: {r.rejectionReason || "No reason was given."}</p>
+                        <p>Please upload a new payment screenshot. Check the receiver and amount on the event page first.</p>
+                        <FileUpload
+                          folder="vector-flow/screenshots"
+                          label="Upload new payment screenshot"
+                          onUploaded={(url) => reupload(r, url)}
+                        />
+                      </div>
+                    )}
+
+                    {r.certificate && r.certificate.status === "SENT" && (
+                      <div className="attended-card__certificate-actions" style={{ marginTop: "8px" }}>
+                        <button
+                          type="button"
+                          className="btn-cert-view"
+                          onClick={() => viewCertificate(r)}
+                        >
+                          <span aria-hidden="true">👁️</span> View Certificate
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-cert-download"
+                          onClick={() => downloadCertificate(r)}
+                        >
+                          <span aria-hidden="true">⬇</span> Download Certificate
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </div>
           )}
-        </article>
-      ))}
+        </>
+      )}
+
+      {/* E-Participation Certificate Viewer Modal */}
+      {viewingCert && (
+        <div
+          className="cert-modal-backdrop"
+          onClick={() => setViewingCert(null)}
+          role="presentation"
+        >
+          <div
+            className="cert-modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cert-modal-title"
+          >
+            <div className="cert-modal__header">
+              <div className="cert-modal__header-title">
+                <h3 id="cert-modal-title">E-Participation Certificate</h3>
+                <p>{viewingCert.registration?.event?.title}</p>
+              </div>
+              <button
+                type="button"
+                className="cert-modal__close"
+                onClick={() => setViewingCert(null)}
+                aria-label="Close certificate viewer"
+              >
+                <span aria-hidden="true">✕</span>
+              </button>
+            </div>
+
+            <div className="cert-modal__body">
+              {viewerLoading ? (
+                <div className="cert-modal__loading">
+                  <p>Loading certificate viewer...</p>
+                </div>
+              ) : viewingCert.url ? (
+                <iframe
+                  src={viewingCert.url}
+                  title={`Certificate for ${viewingCert.registration?.event?.title}`}
+                  className="cert-modal__frame"
+                />
+              ) : (
+                <div className="cert-modal__loading">
+                  <p>Certificate preview could not be loaded.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="cert-modal__footer">
+              {viewingCert.url && (
+                <>
+                  <a
+                    href={viewingCert.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-cert-view"
+                  >
+                    Open in New Tab ↗
+                  </a>
+                  <button
+                    type="button"
+                    className="btn-cert-download"
+                    onClick={() => downloadCertificate(viewingCert.registration)}
+                  >
+                    Download Certificate
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                className="btn-cert-view"
+                onClick={() => setViewingCert(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
