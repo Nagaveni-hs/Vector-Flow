@@ -7,14 +7,36 @@
 // in a production build, through the layout.
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open("vf-v1").then((cache) => cache.add("/offline"))
+    caches
+      .open("vf-v1")
+      .then((cache) => cache.add("/offline"))
+      .then(() => self.skipWaiting())
   );
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
 });
 
 self.addEventListener("fetch", (event) => {
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match("/offline"))
+      fetch(event.request).catch(async (error) => {
+        if (self.navigator.onLine !== false) {
+          console.error(
+            "Navigation request failed while the browser reports online:",
+            event.request.url,
+            error
+          );
+          throw error;
+        }
+
+        const offlinePage = await caches.match("/offline");
+        if (offlinePage) return offlinePage;
+
+        console.error("Offline page is not cached; navigation request failed:", error);
+        throw error;
+      })
     );
   }
 });

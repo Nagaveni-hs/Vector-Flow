@@ -5,7 +5,7 @@
 
 export default function Handover() {
   return (
-    <div>
+    <div className="admin-content-page handover-page">
       <h1>Admin handover note</h1>
       <p>
         This note is for future Vector Flow admins. It covers the daily

@@ -2,15 +2,34 @@
 
 import { useEffect } from "react";
 
-// Registers the service worker for the PWA, Sprint 5. This only
-// runs in the browser, and only in a production build. In local
-// development the worker is not used, so the site still works
-// normally while you test. The worker itself is in public/sw.js.
+// The PWA service worker is registered in production only. In
+// development, remove this app's existing worker so it cannot
+// interfere with local navigation. The worker itself is public/sw.js.
 export default function ServiceWorkerRegister() {
   useEffect(() => {
-    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    if (!("serviceWorker" in navigator)) return;
+
+    const workerUrl = new URL("/sw.js", window.location.origin).href;
+    if (process.env.NODE_ENV !== "production") {
+      navigator.serviceWorker
+        .getRegistration("/")
+        .then((registration) => {
+          const scriptUrl =
+            registration?.active?.scriptURL ||
+            registration?.installing?.scriptURL ||
+            registration?.waiting?.scriptURL;
+          if (scriptUrl === workerUrl) return registration.unregister();
+          return undefined;
+        })
+        .catch((error) => {
+          console.error("Could not remove the Vector Flow service worker in development.", error);
+        });
+      return;
     }
+
+    navigator.serviceWorker.register("/sw.js").catch((error) => {
+      console.error("Could not register the Vector Flow service worker.", error);
+    });
   }, []);
   return null;
 }

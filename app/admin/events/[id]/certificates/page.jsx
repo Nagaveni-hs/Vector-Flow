@@ -115,7 +115,7 @@ export default function Certificates({ params }) {
   if (error) return <p className="error">{error}</p>;
   if (!event) return <p>Loading...</p>;
   return (
-    <div>
+    <div className="admin-content-page certificates-page">
       <h1>Certificates for {event.title}</h1>
       <p>Only students marked Present are listed here.</p>
       <p>
