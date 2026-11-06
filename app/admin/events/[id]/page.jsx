@@ -3,9 +3,26 @@
 import { useEffect, useState } from "react";
 import EventForm from "@/components/EventForm";
 
+// P1 (B5): format in Asia/Kolkata local time, not UTC. The old
+// code used toISOString() (UTC), so an event at 10:00 IST was shown
+// as "04:30" in the datetime-local input, and saving it wrote back
+// 04:30 IST -- every edit shifted all times 5h30m earlier.
+// datetime-local inputs are read as local time, so the value shown
+// here must be the club's local (IST) wall-clock time.
 function toLocal(value) {
   if (!value) return "";
-  return new Date(value).toISOString().slice(0, 16);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(value));
+  const p = {};
+  for (const part of parts) p[part.type] = part.value;
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
 }
 
 export default function EditEvent({ params }) {

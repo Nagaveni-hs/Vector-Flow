@@ -7,6 +7,7 @@ import BrandLogo from "@/components/BrandLogo";
 const links = [
   { href: "/admin", label: "Dashboard", exact: true },
   { href: "/admin/events/new", label: "Create event" },
+  { href: "/admin/mail", label: "Mail" },
   { href: "/admin/team", label: "Team management" },
   { href: "/admin/handover", label: "Handover" },
   { href: "/admin/checks", label: "Local checks" },
