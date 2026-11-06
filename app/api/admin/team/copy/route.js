@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+// P0 (B3): admin role is re-read from the DB by the shared
+// requireAdmin() in lib/auth.js, not trusted from the JWT claim.
+import { requireAdmin } from "@/lib/auth";
 import { ok, fail } from "@/lib/json";
 
 // POST, admin only. Body: { fromYear, toYear }.
@@ -10,9 +12,8 @@ import { ok, fail } from "@/lib/json";
 // twice cannot make duplicate rows. The admin can then edit, add,
 // remove, or reorder the draft, preview it, and publish it later.
 export async function POST(request) {
-  const session = getSession();
-  if (!session) return fail("NOT_SIGNED_IN", 401);
-  if (session.role !== "ADMIN") return fail("FORBIDDEN", 403);
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
   const body = await request.json().catch(() => ({}));
   const fromYear = String(body.fromYear || "").trim();
   const toYear = String(body.toYear || "").trim();

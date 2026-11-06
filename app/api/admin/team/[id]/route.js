@@ -1,20 +1,15 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+// P0 (B3): admin role is re-read from the DB by the shared
+// requireAdmin() in lib/auth.js, not trusted from the JWT claim.
+import { requireAdmin } from "@/lib/auth";
 import { ok, fail } from "@/lib/json";
-
-function requireAdmin() {
-  const session = getSession();
-  if (!session) return { error: fail("NOT_SIGNED_IN", 401) };
-  if (session.role !== "ADMIN") return { error: fail("FORBIDDEN", 403) };
-  return { session };
-}
 
 // PUT, admin only: edit one member. The academic year can be
 // changed here, but isCurrentYear cannot be set through this route.
 // Only Publish can change which year is current, so an edit can
 // never accidentally make a draft year live.
 export async function PUT(request, { params }) {
-  const auth = requireAdmin();
+  const auth = await requireAdmin();
   if (auth.error) return auth.error;
   const existing = await prisma.teamMember.findUnique({ where: { id: params.id } });
   if (!existing) return fail("TEAM_MEMBER_NOT_FOUND", 404);
@@ -35,7 +30,7 @@ export async function PUT(request, { params }) {
 // is only for fixing a wrong row, and the admin page asks for
 // confirmation before calling it.
 export async function DELETE(request, { params }) {
-  const auth = requireAdmin();
+  const auth = await requireAdmin();
   if (auth.error) return auth.error;
   const existing = await prisma.teamMember.findUnique({ where: { id: params.id } });
   if (!existing) return fail("TEAM_MEMBER_NOT_FOUND", 404);

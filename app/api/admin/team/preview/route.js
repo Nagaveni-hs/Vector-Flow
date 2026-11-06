@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+// P0 (B3): admin role is re-read from the DB by the shared
+// requireAdmin() in lib/auth.js, not trusted from the JWT claim.
+import { requireAdmin } from "@/lib/auth";
 import { ok, fail } from "@/lib/json";
 
 // GET, admin only. Query: ?year=2026-27. Returns that year's
@@ -7,9 +9,8 @@ import { ok, fail } from "@/lib/json";
 // for comparison. This route never changes anything. It is only
 // a preview, so the admin can check a draft before publishing it.
 export async function GET(request) {
-  const session = getSession();
-  if (!session) return fail("NOT_SIGNED_IN", 401);
-  if (session.role !== "ADMIN") return fail("FORBIDDEN", 403);
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
   const year = new URL(request.url).searchParams.get("year") || "";
   if (!year) return fail("INVALID_FILE", 400);
   const draft = await prisma.teamMember.findMany({

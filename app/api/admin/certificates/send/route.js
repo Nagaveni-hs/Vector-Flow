@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
-import { ok, fail } from "@/lib/json";
+// P0 (B3): admin role is re-read from the DB by the shared
+// requireAdmin() in lib/auth.js, not trusted from the JWT claim.
+import { requireAdmin } from "@/lib/auth";
+import { ok } from "@/lib/json";
 
 // POST, admin only. Body: { certificateIds: [id, ...] }.
 // This route ticks certificates for sending, and it creates a QUEUED
@@ -12,9 +14,8 @@ import { ok, fail } from "@/lib/json";
 // Returns at once with the count, so the admin page does not wait
 // for mails to go out.
 export async function POST(request) {
-  const session = getSession();
-  if (!session) return fail("NOT_SIGNED_IN", 401);
-  if (session.role !== "ADMIN") return fail("FORBIDDEN", 403);
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
   const body = await request.json().catch(() => ({}));
   const ids = Array.isArray(body.certificateIds) ? body.certificateIds : [];
   let queued = 0;

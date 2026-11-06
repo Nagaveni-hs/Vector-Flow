@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+// P0 (B3): admin role is re-read from the DB by the shared
+// requireAdmin() in lib/auth.js, not trusted from the JWT claim.
+import { requireAdmin } from "@/lib/auth";
 import { ok, fail } from "@/lib/json";
 
 // POST, admin only. Body: { action: "HOLD" or "UNHOLD" }.
@@ -8,9 +10,8 @@ import { ok, fail } from "@/lib/json";
 // is safe even if the file is already uploaded. Unholding puts the
 // certificate back to UPLOADED, ready to be ticked for sending.
 export async function POST(request, { params }) {
-  const session = getSession();
-  if (!session) return fail("NOT_SIGNED_IN", 401);
-  if (session.role !== "ADMIN") return fail("FORBIDDEN", 403);
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
   const body = await request.json().catch(() => ({}));
   const action = String(body.action || "").toUpperCase();
   if (action !== "HOLD" && action !== "UNHOLD") return fail("INVALID_FILE", 400);

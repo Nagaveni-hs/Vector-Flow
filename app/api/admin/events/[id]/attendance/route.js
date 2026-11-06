@@ -1,18 +1,13 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+// P0 (B3): admin role is re-read from the DB by the shared
+// requireAdmin() in lib/auth.js, not trusted from the JWT claim.
+import { requireAdmin } from "@/lib/auth";
 import { ok, fail } from "@/lib/json";
-
-function requireAdmin() {
-  const session = getSession();
-  if (!session) return { error: fail("NOT_SIGNED_IN", 401) };
-  if (session.role !== "ADMIN") return { error: fail("FORBIDDEN", 403) };
-  return { session };
-}
 
 // GET, admin only: every registration for one event, for the
 // attendance page. Sorted by name, so the admin can work down the list.
 export async function GET(request, { params }) {
-  const auth = requireAdmin();
+  const auth = await requireAdmin();
   if (auth.error) return auth.error;
   const event = await prisma.event.findUnique({ where: { id: params.id } });
   if (!event) return fail("EVENT_NOT_FOUND", 404);
@@ -32,7 +27,7 @@ export async function GET(request, { params }) {
 // valid rows are still saved. Attendance does not depend on payment
 // status here; payment and attendance are separate checks.
 export async function POST(request, { params }) {
-  const auth = requireAdmin();
+  const auth = await requireAdmin();
   if (auth.error) return auth.error;
   const event = await prisma.event.findUnique({ where: { id: params.id } });
   if (!event) return fail("EVENT_NOT_FOUND", 404);

@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
-import { ok, fail } from "@/lib/json";
+// P0 (B3): admin role is re-read from the DB by the shared
+// requireAdmin() in lib/auth.js, not trusted from the JWT claim.
+import { requireAdmin } from "@/lib/auth";
+import { ok } from "@/lib/json";
 
 export async function GET() {
-  const session = getSession();
-  if (!session) return fail("NOT_SIGNED_IN", 401);
-  if (session.role !== "ADMIN") return fail("FORBIDDEN", 403);
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
   const events = await prisma.event.findMany({
     orderBy: { createdAt: "desc" },
     include: {
