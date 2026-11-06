@@ -7,16 +7,33 @@ import BrandLogo from "@/components/BrandLogo";
 
 export default function Header() {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
+  // P0 (M3): re-fetch the session on every navigation, not just on
+  // mount, so the Header cannot show a stale signed-in / signed-out
+  // state after a client-side navigation. While loading, show nothing
+  // in the account slot instead of flashing a wrong "Sign in" link.
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((j) => {
+        if (cancelled) return;
         if (j.ok) setUser(j.data.user);
+        else setUser(null);
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => {
+        if (!cancelled) setUser(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/";
@@ -74,7 +91,9 @@ export default function Header() {
             )}
           </div>
           <div className="site-nav__account">
-            {user ? (
+            {loading ? (
+              <span aria-hidden="true" />
+            ) : user ? (
               <>
                 <span className="site-nav__user" title={user.name}>{user.name}</span>
                 <button className="site-nav__signout" type="button" onClick={logout}>

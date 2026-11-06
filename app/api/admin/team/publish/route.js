@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+// P0 (B3): admin role is re-read from the DB by the shared
+// requireAdmin() in lib/auth.js, not trusted from the JWT claim.
+import { requireAdmin } from "@/lib/auth";
 import { ok, fail } from "@/lib/json";
 
 // POST, admin only. Body: { academicYear }.
@@ -11,9 +13,8 @@ import { ok, fail } from "@/lib/json";
 // the year selector. If the given year has no members, this route
 // refuses, so an empty year can never become the live team.
 export async function POST(request) {
-  const session = getSession();
-  if (!session) return fail("NOT_SIGNED_IN", 401);
-  if (session.role !== "ADMIN") return fail("FORBIDDEN", 403);
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
   const body = await request.json().catch(() => ({}));
   const academicYear = String(body.academicYear || "").trim();
   if (!academicYear) return fail("INVALID_FILE", 400);

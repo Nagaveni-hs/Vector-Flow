@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+// P0 (B3): admin role is re-read from the DB by the shared
+// requireAdmin() in lib/auth.js, not trusted from the JWT claim.
+import { requireAdmin } from "@/lib/auth";
 import { ok, fail } from "@/lib/json";
 
 // POST, admin only, one certificate at a time. Only a FAILED
@@ -7,9 +9,8 @@ import { ok, fail } from "@/lib/json";
 // QUEUED mail row, so the next queue run tries it again. It does
 // not send the mail itself.
 export async function POST(request, { params }) {
-  const session = getSession();
-  if (!session) return fail("NOT_SIGNED_IN", 401);
-  if (session.role !== "ADMIN") return fail("FORBIDDEN", 403);
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
   const certificate = await prisma.certificate.findUnique({
     where: { id: params.id },
     include: { registration: true, event: true },
