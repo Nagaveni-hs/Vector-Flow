@@ -15,6 +15,10 @@ const EMPTY = {
 export default function EventForm({ initial, eventId }) {
   const [form, setForm] = useState(initial || EMPTY);
   const [message, setMessage] = useState("");
+  // P1 (B6): the slug the event had when this form opened. The PUT
+  // goes to that original slug, so editing the slug field still saves
+  // instead of 404ing on the new slug (which does not exist yet).
+  const [originalSlug] = useState(initial?.slug || "");
   function set(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
   }
@@ -29,8 +33,19 @@ export default function EventForm({ initial, eventId }) {
       setMessage("External events need an external registration link.");
       return;
     }
-    const payload = { ...form, feeAmount: form.feeAmount ? Number(form.feeAmount) : null };
-    const url = eventId ? `/api/events/${form.slug}` : "/api/events";
+    // P1 (M11): normalise the slug the same way the server does, so
+    // "My Event!" becomes "my-event" before it is sent. The server
+    // re-checks it and refuses a slug that is still invalid.
+    const slug = String(form.slug || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_]+/g, "-")
+      .replace(/[^a-z0-9-]/g, "")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const payload = { ...form, slug, feeAmount: form.feeAmount ? Number(form.feeAmount) : null };
+    // P1 (B6): PUT to the ORIGINAL slug, not the (possibly edited) one.
+    const url = eventId ? `/api/events/${originalSlug || slug}` : "/api/events";
     const method = eventId ? "PUT" : "POST";
     const res = await fetch(url, {
       method,
@@ -39,7 +54,13 @@ export default function EventForm({ initial, eventId }) {
     });
     const json = await res.json();
     if (!json.ok) {
-      setMessage("Could not save the event. Please check the fields and try again.");
+      setMessage(
+        json.error === "INVALID_SLUG"
+          ? "That slug is not usable. Use lowercase letters, numbers, and dashes only."
+          : json.error === "PAYMENT_REQUIRED"
+            ? "Paid events need an amount, receiver name, receiver contact, and a QR image."
+            : "Could not save the event. Please check the fields and try again."
+      );
       return;
     }
     setMessage("Event saved.");

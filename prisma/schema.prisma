@@ -64,6 +64,7 @@ enum MailType {
   PAYMENT_REJECTED
   REMINDER_24H
   CERTIFICATE
+  STANDALONE
 }
 
 enum MailStatus {

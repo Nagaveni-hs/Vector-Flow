@@ -40,6 +40,20 @@ export async function POST(request, { params }) {
   if (event.announcementSentAt) {
     return fail("ANNOUNCEMENT_ALREADY_SENT", 400);
   }
+  // P1 (B7): claim the send atomically BEFORE sending the mail. The
+  // old code checked the flag, sent the mail, then set the flag, so
+  // two concurrent POSTs (two admins, or a retry racing the first)
+  // both passed the check and the whole student group got the mail
+  // twice. This conditional update succeeds for exactly one caller:
+  // only the caller whose update changed 1 row may send.
+  const claimedAt = new Date();
+  const claimed = await prisma.event.updateMany({
+    where: { id: event.id, announcementSentAt: null },
+    data: { announcementSentAt: claimedAt },
+  });
+  if (claimed.count !== 1) {
+    return fail("ANNOUNCEMENT_ALREADY_SENT", 400);
+  }
   const mail = buildAnnouncementMail(event);
   const result = await sendMail({
     to: studentsGroupEmail(),
@@ -47,25 +61,33 @@ export async function POST(request, { params }) {
     text: mail.text,
     html: mail.html,
   });
-  await prisma.mailLog.create({
-    data: {
-      eventId: event.id,
-      toEmail: studentsGroupEmail(),
-      type: "ANNOUNCEMENT",
-      subject: mail.subject,
-      status: result.sent ? "SENT" : "FAILED",
-      error: result.sent ? null : result.error,
-      sentAt: result.sent ? new Date() : null,
-    },
-  });
+  // The mail log is record-keeping: if writing it fails, the send
+  // result above is still the truth, so a log failure must not turn
+  // a sent mail into a 500, and must not leave the claim held after
+  // a failed send.
+  try {
+    await prisma.mailLog.create({
+      data: {
+        eventId: event.id,
+        toEmail: studentsGroupEmail(),
+        type: "ANNOUNCEMENT",
+        subject: mail.subject,
+        status: result.sent ? "SENT" : "FAILED",
+        error: result.sent ? null : result.error,
+        sentAt: result.sent ? new Date() : null,
+      },
+    });
+  } catch {
+    console.error("Could not write the announcement mail log.");
+  }
   if (!result.sent) {
-    // announcementSentAt is deliberately NOT set on failure, so the
-    // admin can retry. Only a successful send marks the event sent.
+    // The claim is released on failure, so the admin can retry.
+    // Only a successful send keeps the event marked as sent.
+    await prisma.event.updateMany({
+      where: { id: event.id, announcementSentAt: claimedAt },
+      data: { announcementSentAt: null },
+    });
     return fail("MAIL_FAILED", 502);
   }
-  const updated = await prisma.event.update({
-    where: { id: event.id },
-    data: { announcementSentAt: new Date() },
-  });
-  return ok({ announcementSentAt: updated.announcementSentAt });
+  return ok({ announcementSentAt: claimedAt });
 }
