@@ -80,6 +80,27 @@ export default function Admin() {
     if (selected) loadRegistrations(selected);
   }
 
+  // P1 (B9): re-send the verified/rejected mail without changing the
+  // decision. Only for registrations whose payment was already
+  // verified or rejected -- if the mail failed the first time, this
+  // is the only way the student ever hears the decision.
+  async function resendPaymentMail(registration) {
+    setMessage("");
+    const res = await fetch(`/api/admin/registrations/${registration.id}/payment/resend`, {
+      method: "POST",
+    });
+    const json = await res.json();
+    if (!json.ok) {
+      setMessage("Could not re-send that payment mail. Please try again.");
+      return;
+    }
+    setMessage(
+      json.data.mailStatus === "SENT"
+        ? "Payment mail re-sent to the student."
+        : "Payment mail could not be sent. Check the mail settings and try again."
+    );
+  }
+
   function csvUrl() {
     if (!selected) return "#";
     const params = new URLSearchParams();
@@ -220,6 +241,9 @@ export default function Admin() {
                           <button onClick={() => paymentAction(r, "VERIFY")}>Verify</button>{" "}
                           <button onClick={() => paymentAction(r, "REJECT")}>Reject</button>
                         </>
+                      )}
+                      {(r.paymentStatus === "VERIFIED" || r.paymentStatus === "REJECTED") && (
+                        <button onClick={() => resendPaymentMail(r)}>Re-send mail</button>
                       )}
                     </td>
                   </tr>
