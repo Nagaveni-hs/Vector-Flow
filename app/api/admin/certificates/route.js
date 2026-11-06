@@ -1,19 +1,14 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+// P0 (B3): admin role is re-read from the DB by the shared
+// requireAdmin() in lib/auth.js, not trusted from the JWT claim.
+import { requireAdmin } from "@/lib/auth";
 import { ok, fail } from "@/lib/json";
-
-function requireAdmin() {
-  const session = getSession();
-  if (!session) return { error: fail("NOT_SIGNED_IN", 401) };
-  if (session.role !== "ADMIN") return { error: fail("FORBIDDEN", 403) };
-  return { session };
-}
 
 // GET, admin only: certificates for one event, with the registration
 // and student details the admin page needs. Query: ?eventId=...
 // If no eventId is given, the newest 100 certificates are returned.
 export async function GET(request) {
-  const auth = requireAdmin();
+  const auth = await requireAdmin();
   if (auth.error) return auth.error;
   const eventId = new URL(request.url).searchParams.get("eventId") || "";
   const certificates = await prisma.certificate.findMany({
@@ -39,7 +34,7 @@ export async function GET(request) {
 // and resets it to UPLOADED, with send ticked off and no sent date,
 // so a wrong file can be corrected before it is ever sent.
 export async function POST(request) {
-  const auth = requireAdmin();
+  const auth = await requireAdmin();
   if (auth.error) return auth.error;
   const body = await request.json().catch(() => ({}));
   const registrationId = String(body.registrationId || "");

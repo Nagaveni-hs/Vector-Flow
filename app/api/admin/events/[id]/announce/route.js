@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+// P0 (B3): admin role is re-read from the DB by the shared
+// requireAdmin() in lib/auth.js, not trusted from the JWT claim.
+import { requireAdmin } from "@/lib/auth";
 import { ok, fail } from "@/lib/json";
 import { buildAnnouncementMail, sendMail, studentsGroupEmail } from "@/lib/mail";
 
@@ -11,16 +13,9 @@ async function findEvent(key) {
   return prisma.event.findUnique({ where: { slug: key } });
 }
 
-function requireAdmin() {
-  const session = getSession();
-  if (!session) return { error: fail("NOT_SIGNED_IN", 401) };
-  if (session.role !== "ADMIN") return { error: fail("FORBIDDEN", 403) };
-  return { session };
-}
-
 // GET: the exact preview the admin sees before sending. No mail is sent here.
 export async function GET(request, { params }) {
-  const auth = requireAdmin();
+  const auth = await requireAdmin();
   if (auth.error) return auth.error;
   const event = await findEvent(params.id);
   if (!event) return fail("EVENT_NOT_FOUND", 404);
@@ -38,7 +33,7 @@ export async function GET(request, { params }) {
 // resend it, because the edit endpoint never touches announcementSentAt
 // and this route refuses when it is already set.
 export async function POST(request, { params }) {
-  const auth = requireAdmin();
+  const auth = await requireAdmin();
   if (auth.error) return auth.error;
   const event = await findEvent(params.id);
   if (!event) return fail("EVENT_NOT_FOUND", 404);

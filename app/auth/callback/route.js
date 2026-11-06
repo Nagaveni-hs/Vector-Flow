@@ -3,10 +3,28 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import {
   exchangeGoogleCode,
+  getSession,
   isCollegeEmail,
   sessionCookie,
   signSession,
 } from "@/lib/auth";
+
+// P0 (M4): the vf_oauth_state cookie is now cleared on EVERY exit
+// path, not only on success, so a stale state value can never strand
+// a later sign-in attempt. And on any failure, a user who already has
+// a valid session is sent to Home, not dumped on the sign-in page.
+function redirectWithClearedState(url) {
+  const res = NextResponse.redirect(url);
+  res.cookies.set({
+    name: "vf_oauth_state",
+    value: "",
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+  return res;
+}
 
 export async function GET(request) {
   const appUrl = process.env.APP_URL || "http://localhost:3000";
@@ -15,15 +33,18 @@ export async function GET(request) {
   const state = url.searchParams.get("state");
   const savedState = cookies().get("vf_oauth_state")?.value;
   if (!code || !state || state !== savedState) {
-    return NextResponse.redirect(`${appUrl}/signin?error=NOT_SIGNED_IN`);
+    if (getSession()) return redirectWithClearedState(`${appUrl}/`);
+    return redirectWithClearedState(`${appUrl}/signin?error=NOT_SIGNED_IN`);
   }
   try {
     const userinfo = await exchangeGoogleCode(code);
     if (!isCollegeEmail(userinfo.email)) {
-      return NextResponse.redirect(`${appUrl}/signin?error=NOT_COLLEGE_EMAIL`);
+      if (getSession()) return redirectWithClearedState(`${appUrl}/`);
+      return redirectWithClearedState(`${appUrl}/signin?error=NOT_COLLEGE_EMAIL`);
     }
     if (userinfo.hd && userinfo.hd !== "vvce.ac.in") {
-      return NextResponse.redirect(`${appUrl}/signin?error=NOT_COLLEGE_EMAIL`);
+      if (getSession()) return redirectWithClearedState(`${appUrl}/`);
+      return redirectWithClearedState(`${appUrl}/signin?error=NOT_COLLEGE_EMAIL`);
     }
     const user = await prisma.user.upsert({
       where: { email: userinfo.email.toLowerCase() },
@@ -36,9 +57,17 @@ export async function GET(request) {
     const token = signSession({ userId: user.id, role: user.role, email: user.email });
     const res = NextResponse.redirect(`${appUrl}/`);
     res.cookies.set(sessionCookie(token));
-    res.cookies.set({ name: "vf_oauth_state", value: "", path: "/", maxAge: 0 });
+    res.cookies.set({
+      name: "vf_oauth_state",
+      value: "",
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
     return res;
   } catch (e) {
-    return NextResponse.redirect(`${appUrl}/signin?error=NOT_SIGNED_IN`);
+    if (getSession()) return redirectWithClearedState(`${appUrl}/`);
+    return redirectWithClearedState(`${appUrl}/signin?error=NOT_SIGNED_IN`);
   }
 }

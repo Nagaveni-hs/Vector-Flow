@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+// P0 (B3): admin role is re-read from the DB by the shared
+// requireAdmin() in lib/auth.js, not trusted from the JWT claim.
+import { requireAdmin } from "@/lib/auth";
 import { ok, fail } from "@/lib/json";
 
 // GET, admin only. Sprint 3 dashboard list for one event.
@@ -19,9 +21,8 @@ function csvCell(value) {
 }
 
 export async function GET(request, { params }) {
-  const session = getSession();
-  if (!session) return fail("NOT_SIGNED_IN", 401);
-  if (session.role !== "ADMIN") return fail("FORBIDDEN", 403);
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
   const event = await prisma.event.findUnique({ where: { id: params.id } });
   if (!event) return fail("EVENT_NOT_FOUND", 404);
   const url = new URL(request.url);

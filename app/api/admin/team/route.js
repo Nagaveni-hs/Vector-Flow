@@ -1,18 +1,13 @@
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+// P0 (B3): admin role is re-read from the DB by the shared
+// requireAdmin() in lib/auth.js, not trusted from the JWT claim.
+import { requireAdmin } from "@/lib/auth";
 import { ok, fail } from "@/lib/json";
-
-function requireAdmin() {
-  const session = getSession();
-  if (!session) return { error: fail("NOT_SIGNED_IN", 401) };
-  if (session.role !== "ADMIN") return { error: fail("FORBIDDEN", 403) };
-  return { session };
-}
 
 // GET, admin only: every team member, grouped by the admin page.
 // The public team route is separate and only shows one year at a time.
 export async function GET() {
-  const auth = requireAdmin();
+  const auth = await requireAdmin();
   if (auth.error) return auth.error;
   const members = await prisma.teamMember.findMany({
     orderBy: [{ academicYear: "desc" }, { orderIndex: "asc" }],
@@ -25,7 +20,7 @@ export async function GET() {
 // current year. Only the Publish route can make a year current,
 // so preparing a new year never changes the live team page.
 export async function POST(request) {
-  const auth = requireAdmin();
+  const auth = await requireAdmin();
   if (auth.error) return auth.error;
   const body = await request.json().catch(() => ({}));
   if (!body.name || !body.designation || !body.academicYear) {

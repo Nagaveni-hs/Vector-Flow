@@ -368,6 +368,12 @@ th {
 .brand-logo {
   display: block;
   object-fit: contain;
+  /* P0 (M1) stop-gap: public/vector-flow-logo.jpeg is a JPEG, so it
+     cannot be transparent and its black corners show on every page.
+     Clip the logo to a white circle until the club supplies a
+     transparent PNG logo. A real logo file is still owed. */
+  border-radius: 50%;
+  background: #fff;
 }
 
 .site-brand__logo {
@@ -626,15 +632,10 @@ th {
   color: var(--color-blue-700);
 }
 
-.signin-brand {
-  margin: 0 0 24px;
-}
-
-.signin-brand__logo {
-  width: 128px;
-  height: 128px;
-}
-
+/* P0 (M2): the early duplicate .signin-brand / .signin-brand__logo
+   rules were removed. The later block (below, next to .signin-page)
+   already defines both, and it wins, so the early copy only caused
+   confusion about which size and margin applied. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -2538,6 +2539,13 @@ th {
 .signin-brand__logo {
   width: 96px;
   height: 96px;
+}
+
+/* P0 (M2): centre the eyebrow only on the sign-in page. The shared
+   .page-eyebrow rule stays left-aligned on purpose — gallery, team,
+   admin and participation pages use it that way. */
+.signin-page .page-eyebrow {
+  justify-content: center;
 }
 
 .signin-page h1 {

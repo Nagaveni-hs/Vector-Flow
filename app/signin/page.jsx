@@ -1,12 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect } from "react";
 import BrandLogo from "@/components/BrandLogo";
 
 function SignInContent() {
+  const router = useRouter();
   const params = useSearchParams();
+  // P0 (B1) fallback: the middleware already redirects a signed-in
+  // user away from /signin, but if this page is ever reached with a
+  // valid session (for example from the browser Back button after a
+  // client-side navigation), send them Home instead of showing the
+  // sign-in card to someone who is already signed in.
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.ok) router.replace("/");
+      })
+      .catch(() => {});
+  }, [router]);
   const error = params.get("error");
   const message =
     error === "NOT_COLLEGE_EMAIL"
