@@ -9,8 +9,8 @@ export async function GET() {
     where: { userId: session.userId },
     orderBy: { registeredAt: "desc" },
     include: {
-      event: { select: { title: true, slug: true, startAt: true, feeType: true, feeAmount: true } },
-      certificate: { select: { id: true, status: true, emailedAt: true } },
+      event: { select: { title: true, slug: true, startAt: true, feeType: true, feeAmount: true, venue: true, posterImageUrl: true, mode: true, status: true } },
+      certificate: { select: { id: true, status: true, emailedAt: true, issuedAt: true } },
     },
   });
   // Sprint 4 rule, enforced here, not just in the page: a certificate
