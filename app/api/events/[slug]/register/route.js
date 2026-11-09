@@ -39,21 +39,45 @@ export async function POST(request, { params }) {
     if (u.length > 2000) return fail("INVALID_FILE", 400);
   }
   const semester = body.semester ? Number(body.semester) : null;
+  // M5: a CANCELLED row does not block a fresh registration. The
+  // unique [eventId, userId] guard would otherwise throw P2002 on a
+  // student who cancelled and wants to register again. So a cancelled
+  // row is re-activated below (status back to REGISTERED, payment and
+  // attendance reset, new screenshot kept) instead of creating a
+  // second row. A still-REGISTERED row is refused as before.
+  const existingRegistration = await prisma.registration.findFirst({
+    where: { eventId: event.id, userId: session.userId },
+  });
+  if (existingRegistration && existingRegistration.status === "REGISTERED") {
+    return fail("ALREADY_REGISTERED", 400);
+  }
   try {
-    const registration = await prisma.registration.create({
-      data: {
-        eventId: event.id,
-        userId: session.userId,
-        name,
-        usn,
-        email,
-        branch: body.branch ? String(body.branch).trim().slice(0, 100) : null,
-        semester: Number.isInteger(semester) && semester >= 1 && semester <= 12 ? semester : null,
-        phone: body.phone ? String(body.phone).trim().slice(0, 20) : null,
-        paymentStatus: isPaid ? "PENDING_REVIEW" : "NOT_REQUIRED",
-        paymentScreenshotUrl: body.paymentScreenshotUrl || null,
-      },
-    });
+    const registrationData = {
+      eventId: event.id,
+      userId: session.userId,
+      name,
+      usn,
+      email,
+      branch: body.branch ? String(body.branch).trim().slice(0, 100) : null,
+      semester: Number.isInteger(semester) && semester >= 1 && semester <= 12 ? semester : null,
+      phone: body.phone ? String(body.phone).trim().slice(0, 20) : null,
+      paymentStatus: isPaid ? "PENDING_REVIEW" : "NOT_REQUIRED",
+      paymentScreenshotUrl: body.paymentScreenshotUrl || null,
+    };
+    const registration = existingRegistration
+      ? await prisma.registration.update({
+          where: { id: existingRegistration.id },
+          data: {
+            ...registrationData,
+            status: "REGISTERED",
+            attendance: "UNMARKED",
+            reminderSentAt: null,
+            cancelledAt: null,
+            rejectionReason: null,
+            registeredAt: new Date(),
+          },
+        })
+      : await prisma.registration.create({ data: registrationData });
     // P1 (M6): save the profile fields to the User row, so the next
     // event's form is prefilled instead of empty forever. This is
     // best-effort and must never fail the registration: a USN that

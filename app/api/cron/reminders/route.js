@@ -4,19 +4,27 @@ import { buildReminderMail, sendMail } from "@/lib/mail";
 import { checkCronSecret } from "@/lib/cron";
 
 // GET, called hourly by the external scheduler (cron-job.org, deferred
-// until deploy). Events starting in 24 to 25 hours only, registered
-// students only, and only registrations with no reminderSentAt.
-// reminderSentAt is set on success only, so a failed mail is retried
-// on the next run and a sent mail is never resent.
+// until deploy). Registered students only, and only registrations with
+// no reminderSentAt.
+// P2 (M10) catch-up window: an event starting within the next 24 hours
+// (startAt > now AND startAt <= now + 24h). The old window was only
+// "starts in 24 to 25 hours", so if the scheduler missed that one
+// hour, the reminder was lost forever. Now a late run still catches
+// the event, as long as it has not started yet. Events that already
+// started never get a reminder.
+// At-most-once: reminderSentAt is claimed atomically (updateMany on
+// reminderSentAt: null) BEFORE the mail is sent, so two runs racing
+// each other cannot both send it. If the mail then fails, the claim
+// is released (reminderSentAt set back to null) so the next run
+// retries it; a sent mail is never resent.
 export async function GET(request) {
   if (!checkCronSecret(request)) return fail("FORBIDDEN", 403);
   const now = new Date();
-  const windowStart = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  const windowEnd = new Date(now.getTime() + 25 * 60 * 60 * 1000);
+  const windowEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   const events = await prisma.event.findMany({
     where: {
       status: "PUBLISHED",
-      startAt: { gte: windowStart, lt: windowEnd },
+      startAt: { gt: now, lte: windowEnd },
     },
     include: {
       registrations: {
@@ -28,6 +36,14 @@ export async function GET(request) {
   let failed = 0;
   for (const event of events) {
     for (const registration of event.registrations) {
+      // Claim this reminder first: only the run that wins the claim
+      // sends the mail. A cancelled registration never reaches here
+      // (the query above only takes REGISTERED rows).
+      const claimed = await prisma.registration.updateMany({
+        where: { id: registration.id, reminderSentAt: null, status: "REGISTERED" },
+        data: { reminderSentAt: new Date() },
+      });
+      if (claimed.count !== 1) continue;
       const mail = buildReminderMail(event, registration);
       const result = await sendMail({
         to: registration.email,
@@ -48,12 +64,13 @@ export async function GET(request) {
         },
       });
       if (result.sent) {
-        await prisma.registration.update({
-          where: { id: registration.id },
-          data: { reminderSentAt: new Date() },
-        });
         sent += 1;
       } else {
+        // Release the claim so the next hourly run retries the mail.
+        await prisma.registration.updateMany({
+          where: { id: registration.id },
+          data: { reminderSentAt: null },
+        });
         failed += 1;
       }
     }
