@@ -650,16 +650,6 @@ th {
    rules were removed. The later block (below, next to .signin-page)
    already defines both, and it wins, so the early copy only caused
    confusion about which size and margin applied. */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-  }
-}
 
 @media (max-width: 700px) {
   main {
@@ -1661,20 +1651,6 @@ th {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .home-event-card,
-  .home-button,
-  .home-hero__logo-frame,
-  .home-highlight,
-  .gallery-card,
-  .gallery-card__image img,
-  .team-card,
-  .site-nav__link,
-  .site-nav__signin,
-  .signin-page__button {
-    transition: none;
-  }
-}
 
 .event-detail {
   display: grid;
@@ -2381,16 +2357,6 @@ th {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .event-detail-cta,
-  .event-registration-submit {
-    transition: none;
-  }
-
-  .event-detail-loading-mark {
-    animation: none;
-  }
-}
 
 .content-page,
 .admin-content-page {
@@ -3589,5 +3555,42 @@ th {
     width: 100%;
     text-align: center;
     justify-content: center;
+  }
+}
+
+/* P2/P3 (M14): the three separate prefers-reduced-motion blocks are
+   merged into this one block, at the end of the file. They were
+   complementary, not identical -- the first sets a global duration
+   rule, the others switch off transitions on specific components --
+   so every selector from all three is kept here, and nothing about
+   the behaviour changes. Mobile overrides stay above this block, at
+   the end of the file, as before. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .home-event-card,
+  .home-button,
+  .home-hero__logo-frame,
+  .home-highlight,
+  .gallery-card,
+  .gallery-card__image img,
+  .team-card,
+  .site-nav__link,
+  .site-nav__signin,
+  .signin-page__button,
+  .event-detail-cta,
+  .event-registration-submit {
+    transition: none;
+  }
+
+  .event-detail-loading-mark {
+    animation: none;
   }
 }
