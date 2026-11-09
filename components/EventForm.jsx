@@ -15,6 +15,21 @@ const EMPTY = {
 export default function EventForm({ initial, eventId }) {
   const [form, setForm] = useState(initial || EMPTY);
   const [message, setMessage] = useState("");
+  // B1 (audit 2026-11-10): a datetime-local value is a bare wall-clock
+  // string ("2026-11-10T10:00") with no timezone. The server reads it
+  // as its own local time, so on a UTC server (Vercel) 10:00 IST was
+  // stored as 10:00 UTC = 15:30 IST, and every re-edit drifted another
+  // 5h30. The admin always means IST, so attach the explicit +05:30
+  // offset before sending; new Date() on the server then stores the
+  // same instant whatever the server timezone is. Values that already
+  // carry an offset are passed through unchanged.
+  function toISTISOString(value) {
+    if (!value) return value;
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(value)) {
+      return `${value}+05:30`;
+    }
+    return value;
+  }
   // P1 (B6): the slug the event had when this form opened. The PUT
   // goes to that original slug, so editing the slug field still saves
   // instead of 404ing on the new slug (which does not exist yet).
@@ -43,7 +58,15 @@ export default function EventForm({ initial, eventId }) {
       .replace(/[^a-z0-9-]/g, "")
       .replace(/-+/g, "-")
       .replace(/^-+|-+$/g, "");
-    const payload = { ...form, slug, feeAmount: form.feeAmount ? Number(form.feeAmount) : null };
+    const payload = {
+      ...form,
+      slug,
+      feeAmount: form.feeAmount ? Number(form.feeAmount) : null,
+      startAt: toISTISOString(form.startAt),
+      endAt: toISTISOString(form.endAt),
+      registrationOpensAt: toISTISOString(form.registrationOpensAt),
+      registrationClosesAt: toISTISOString(form.registrationClosesAt),
+    };
     // P1 (B6): PUT to the ORIGINAL slug, not the (possibly edited) one.
     const url = eventId ? `/api/events/${originalSlug || slug}` : "/api/events";
     const method = eventId ? "PUT" : "POST";
