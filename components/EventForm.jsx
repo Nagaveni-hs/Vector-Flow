@@ -15,6 +15,8 @@ const EMPTY = {
 export default function EventForm({ initial, eventId }) {
   const [form, setForm] = useState(initial || EMPTY);
   const [message, setMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [saving, setSaving] = useState(false);
   // B1 (audit 2026-11-10): a datetime-local value is a bare wall-clock
   // string ("2026-11-10T10:00") with no timezone. The server reads it
   // as its own local time, so on a UTC server (Vercel) 10:00 IST was
@@ -36,18 +38,47 @@ export default function EventForm({ initial, eventId }) {
   const [originalSlug] = useState(initial?.slug || "");
   function set(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
+    setFieldErrors((e) => {
+      if (!e[key]) return e;
+      const next = { ...e };
+      delete next[key];
+      return next;
+    });
   }
   async function submit(e) {
     e.preventDefault();
     setMessage("");
-    if (form.feeType === "PAID" && (!form.feeAmount || !form.paymentReceiverName || !form.paymentReceiverContact || !form.paymentQrImageUrl)) {
-      setMessage("Paid events need an amount, receiver name, receiver contact, and a QR image.");
-      return;
+    const errors = {};
+    if (form.feeType === "PAID") {
+      if (!form.feeAmount || Number(form.feeAmount) <= 0) errors.feeAmount = "Enter the fee amount in rupees.";
+      if (!form.paymentReceiverName) errors.paymentReceiverName = "Enter the payment receiver name.";
+      if (!form.paymentReceiverContact) errors.paymentReceiverContact = "Enter the payment receiver contact.";
+      if (!form.paymentQrImageUrl) errors.paymentQrImageUrl = "Upload the payment QR image.";
     }
     if (form.registrationMode === "EXTERNAL" && !form.externalRegistrationUrl) {
-      setMessage("External events need an external registration link.");
+      errors.externalRegistrationUrl = "External events need an external registration link.";
+    }
+    if (form.endAt && form.startAt && new Date(form.endAt) <= new Date(form.startAt)) {
+      errors.endAt = "The end date and time must be after the start.";
+    }
+    if (form.registrationOpensAt && form.registrationClosesAt && new Date(form.registrationClosesAt) <= new Date(form.registrationOpensAt)) {
+      errors.registrationClosesAt = "Registration must close after it opens.";
+    }
+    if (form.registrationClosesAt && form.startAt && new Date(form.registrationClosesAt) > new Date(form.startAt)) {
+      errors.registrationClosesAt = "Registration must close by the time the event starts.";
+    }
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setMessage(
+        form.feeType === "PAID" && (errors.feeAmount || errors.paymentReceiverName || errors.paymentReceiverContact || errors.paymentQrImageUrl)
+          ? "Paid events need an amount, receiver name, receiver contact, and a QR image."
+          : errors.externalRegistrationUrl
+            ? "External events need an external registration link."
+            : "Please fix the fields marked below and try again."
+      );
       return;
     }
+    setFieldErrors({});
     // P1 (M11): normalise the slug the same way the server does, so
     // "My Event!" becomes "my-event" before it is sent. The server
     // re-checks it and refuses a slug that is still invalid.
@@ -70,29 +101,46 @@ export default function EventForm({ initial, eventId }) {
     // P1 (B6): PUT to the ORIGINAL slug, not the (possibly edited) one.
     const url = eventId ? `/api/events/${originalSlug || slug}` : "/api/events";
     const method = eventId ? "PUT" : "POST";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const json = await res.json();
-    if (!json.ok) {
-      setMessage(
-        json.error === "INVALID_SLUG"
-          ? "That slug is not usable. Use lowercase letters, numbers, and dashes only."
-          : json.error === "PAYMENT_REQUIRED"
-            ? "Paid events need an amount, receiver name, receiver contact, and a QR image."
-            : "Could not save the event. Please check the fields and try again."
-      );
-      return;
+    setSaving(true);
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        if (json.error === "INVALID_SLUG") {
+          setFieldErrors({ slug: "That slug is not usable. Use lowercase letters, numbers, and dashes only." });
+        } else if (json.error === "PAYMENT_REQUIRED") {
+          const paymentErrors = {};
+          if (!form.feeAmount || Number(form.feeAmount) <= 0) paymentErrors.feeAmount = "Paid events need a fee amount.";
+          if (!form.paymentReceiverName) paymentErrors.paymentReceiverName = "Paid events need a receiver name.";
+          if (!form.paymentReceiverContact) paymentErrors.paymentReceiverContact = "Paid events need a receiver contact.";
+          if (!form.paymentQrImageUrl) paymentErrors.paymentQrImageUrl = "Paid events need a QR image.";
+          setFieldErrors(Object.keys(paymentErrors).length > 0 ? paymentErrors : { feeAmount: "Paid events need an amount, receiver name, receiver contact, and a QR image." });
+        }
+        setMessage(
+          json.error === "INVALID_SLUG"
+            ? "That slug is not usable. Use lowercase letters, numbers, and dashes only."
+            : json.error === "PAYMENT_REQUIRED"
+              ? "Paid events need an amount, receiver name, receiver contact, and a QR image."
+              : "Could not save the event. Please check the fields and try again."
+        );
+        return;
+      }
+      setMessage("Event saved.");
+      if (!eventId) window.location.href = "/admin";
+    } catch {
+      setMessage("Could not save the event. Please check the fields and try again.");
+    } finally {
+      setSaving(false);
     }
-    setMessage("Event saved.");
-    if (!eventId) window.location.href = "/admin";
   }
   return (
     <form className="event-form" onSubmit={submit}>
       <label>Title<input value={form.title} onChange={(e) => set("title", e.target.value)} required /></label>
-      <label>Slug (letters, numbers, and dashes only)<input value={form.slug} onChange={(e) => set("slug", e.target.value)} required /></label>
+      <label>Slug (letters, numbers, and dashes only)<input value={form.slug} onChange={(e) => set("slug", e.target.value)} required />{fieldErrors.slug && <span className="field-error">{fieldErrors.slug}</span>}</label>
       <label>Description<textarea value={form.description} onChange={(e) => set("description", e.target.value)} required /></label>
       <FileUpload folder="vector-flow/posters" label="Poster image" onUploaded={(url) => set("posterImageUrl", url)} />
       {form.posterImageUrl && <p>Poster: {form.posterImageUrl}</p>}
@@ -104,9 +152,9 @@ export default function EventForm({ initial, eventId }) {
         </select>
       </label>
       <label>Start date and time<input type="datetime-local" value={form.startAt} onChange={(e) => set("startAt", e.target.value)} required /></label>
-      <label>End date and time<input type="datetime-local" value={form.endAt} onChange={(e) => set("endAt", e.target.value)} /></label>
+      <label>End date and time<input type="datetime-local" value={form.endAt} onChange={(e) => set("endAt", e.target.value)} />{fieldErrors.endAt && <span className="field-error">{fieldErrors.endAt}</span>}</label>
       <label>Registration opens<input type="datetime-local" value={form.registrationOpensAt} onChange={(e) => set("registrationOpensAt", e.target.value)} /></label>
-      <label>Registration closes<input type="datetime-local" value={form.registrationClosesAt} onChange={(e) => set("registrationClosesAt", e.target.value)} /></label>
+      <label>Registration closes<input type="datetime-local" value={form.registrationClosesAt} onChange={(e) => set("registrationClosesAt", e.target.value)} />{fieldErrors.registrationClosesAt && <span className="field-error">{fieldErrors.registrationClosesAt}</span>}</label>
       <label>Fee type
         <select value={form.feeType} onChange={(e) => set("feeType", e.target.value)}>
           <option value="FREE">Free</option>
@@ -115,10 +163,11 @@ export default function EventForm({ initial, eventId }) {
       </label>
       {form.feeType === "PAID" && (
         <>
-          <label>Fee amount (rupees)<input type="number" min="1" value={form.feeAmount} onChange={(e) => set("feeAmount", e.target.value)} /></label>
-          <label>Payment receiver name<input value={form.paymentReceiverName} onChange={(e) => set("paymentReceiverName", e.target.value)} /></label>
-          <label>Payment receiver contact<input value={form.paymentReceiverContact} onChange={(e) => set("paymentReceiverContact", e.target.value)} /></label>
+          <label>Fee amount (rupees)<input type="number" min="1" value={form.feeAmount} onChange={(e) => set("feeAmount", e.target.value)} />{fieldErrors.feeAmount && <span className="field-error">{fieldErrors.feeAmount}</span>}</label>
+          <label>Payment receiver name<input value={form.paymentReceiverName} onChange={(e) => set("paymentReceiverName", e.target.value)} />{fieldErrors.paymentReceiverName && <span className="field-error">{fieldErrors.paymentReceiverName}</span>}</label>
+          <label>Payment receiver contact<input value={form.paymentReceiverContact} onChange={(e) => set("paymentReceiverContact", e.target.value)} />{fieldErrors.paymentReceiverContact && <span className="field-error">{fieldErrors.paymentReceiverContact}</span>}</label>
           <FileUpload folder="vector-flow/qr" label="Payment QR image" onUploaded={(url) => set("paymentQrImageUrl", url)} />
+          {fieldErrors.paymentQrImageUrl && <p className="field-error">{fieldErrors.paymentQrImageUrl}</p>}
           {form.paymentQrImageUrl && <p>QR: {form.paymentQrImageUrl}</p>}
         </>
       )}
@@ -129,7 +178,7 @@ export default function EventForm({ initial, eventId }) {
         </select>
       </label>
       {form.registrationMode === "EXTERNAL" && (
-        <label>External registration link<input value={form.externalRegistrationUrl} onChange={(e) => set("externalRegistrationUrl", e.target.value)} /></label>
+        <label>External registration link<input value={form.externalRegistrationUrl} onChange={(e) => set("externalRegistrationUrl", e.target.value)} />{fieldErrors.externalRegistrationUrl && <span className="field-error">{fieldErrors.externalRegistrationUrl}</span>}</label>
       )}
       <label>Drive link<input value={form.driveLink} onChange={(e) => set("driveLink", e.target.value)} /></label>
       <label>Status
@@ -141,7 +190,7 @@ export default function EventForm({ initial, eventId }) {
           <option value="CANCELLED">Cancelled</option>
         </select>
       </label>
-      <button type="submit">Save event</button>
+      <button type="submit" disabled={saving}>{saving ? "Saving..." : "Save event"}</button>
       {message && <p>{message}</p>}
       {message === "Event saved." && eventId && (
         <p>

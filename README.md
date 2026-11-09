@@ -363,7 +363,6 @@ again.
 - Certificates for an event: `/admin/events/[id]/certificates`
 - Team admin: `/admin/team`
 - Mail: `/admin/mail`
-- Admin handover note: `/admin/handover`
 - Local checks: `/admin/checks`
 
 ## Testing and launch

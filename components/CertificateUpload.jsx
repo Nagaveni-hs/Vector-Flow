@@ -77,7 +77,7 @@ export default function CertificateUpload({ onUploaded, label }) {
         {label || "Upload PDF certificate"}
         <input type="file" accept="application/pdf" onChange={onChange} disabled={uploading} />
       </label>
-      {message && <p>{message}</p>}
+      {message && <p>{uploading && <span className="btn-spinner btn-spinner--dark" aria-hidden="true" />} {message}</p>}
     </div>
   );
 }

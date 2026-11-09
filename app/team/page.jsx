@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Skeleton from "@/components/Skeleton";
 
 // Sprint 5 Team page, public. Shows the current year team by
 // default, ordered as the admin set it. The year selector shows
@@ -36,7 +37,21 @@ export default function Team() {
     load("");
   }, []);
 
-  if (loading) return <p>Loading...</p>;
+  if (loading)
+    return (
+      <div className="content-page team-page" aria-label="Loading team" aria-busy="true">
+        <header className="page-heading page-heading--split">
+          <div>
+            <p className="page-eyebrow">The people behind the club</p>
+            <h1>Our team</h1>
+            <p>Meet the students who make Vector Flow happen.</p>
+          </div>
+        </header>
+        <div className="team-grid">
+          <Skeleton variant="card" count={3} />
+        </div>
+      </div>
+    );
   // m35: a failed load gets a Try again button, like the homepage
   // already has, instead of plain error text with no way forward.
   if (error)

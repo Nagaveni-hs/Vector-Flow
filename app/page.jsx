@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import BrandLogo from "@/components/BrandLogo";
+import Skeleton from "@/components/Skeleton";
 
 function formatEventDate(value) {
   if (!value) return "Date to be announced";
@@ -105,13 +106,7 @@ export default function Home() {
 
         {loading ? (
           <div className="home-event-grid" aria-label="Loading events" aria-busy="true">
-            {[0, 1, 2].map((item) => (
-              <div className="home-event-skeleton" key={item}>
-                <span />
-                <span />
-                <span />
-              </div>
-            ))}
+            <Skeleton variant="card" count={3} />
           </div>
         ) : error ? (
           <div className="home-events-message home-events-message--error" role="alert">
