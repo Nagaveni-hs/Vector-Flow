@@ -9,7 +9,10 @@ import { normaliseSlug, validateEvent } from "@/lib/eventValidation";
 export async function GET() {
   try {
     const events = await prisma.event.findMany({
-      where: { status: "PUBLISHED" },
+      // m28: ONGOING events belong here too, not just in the gallery.
+      // The detail page is already public for ONGOING events, so
+      // hiding them from this list was an oversight, not a rule.
+      where: { status: { in: ["PUBLISHED", "ONGOING"] } },
       orderBy: { startAt: "asc" },
       select: {
         id: true, title: true, slug: true, description: true,
@@ -46,7 +49,9 @@ export async function POST(request) {
         registrationOpensAt: body.registrationOpensAt ? new Date(body.registrationOpensAt) : null,
         registrationClosesAt: body.registrationClosesAt ? new Date(body.registrationClosesAt) : null,
         feeType: body.feeType || "FREE",
-        feeAmount: body.feeAmount ? Number(body.feeAmount) : null,
+        // m16: a FREE event stores no fee amount, whatever the
+        // caller sent.
+        feeAmount: body.feeType === "FREE" ? null : body.feeAmount ? Number(body.feeAmount) : null,
         paymentReceiverName: body.paymentReceiverName || null,
         paymentReceiverContact: body.paymentReceiverContact || null,
         paymentQrImageUrl: body.paymentQrImageUrl || null,
@@ -59,7 +64,10 @@ export async function POST(request) {
     });
     return ok({ event }, 201);
   } catch (e) {
-    if (e && e.code === "P2002") return fail("INVALID_FILE", 400);
+    // m15: a taken slug is the one error the admin can fix by
+    // changing one field, so it gets its own code instead of the
+    // generic "could not save".
+    if (e && e.code === "P2002") return fail("SLUG_TAKEN", 400);
     return fail("INVALID_FILE", 400);
   }
 }

@@ -10,6 +10,7 @@
 // it in Git. This script is local tooling only; the website never
 // runs it.
 import readline from "node:readline";
+import crypto from "node:crypto";
 
 const SCOPES = [
   "openid",
@@ -31,6 +32,11 @@ if (!clientId || !clientSecret) {
   process.exit(1);
 }
 
+// m9: a random state value, so the grant cannot be started by
+// someone else and finished here. Google sends it back with the
+// code, and the script checks it matches before exchanging.
+const state = crypto.randomBytes(16).toString("hex");
+
 const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
   client_id: clientId,
   redirect_uri: redirectUri,
@@ -38,6 +44,7 @@ const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchPar
   scope: SCOPES,
   access_type: "offline",
   prompt: "consent",
+  state,
 }).toString()}`;
 
 console.log("1. Open this URL in your browser:");
@@ -49,14 +56,23 @@ console.log("   That is expected. Continue, and approve 'Send email on your beha
 console.log("3. Google will send you back to localhost, which will fail to load.");
 console.log("   That is expected too. Copy the code from the address bar,");
 console.log("   the part after ?code= (up to the next &), and paste it below.");
+console.log("   Also copy the state from the address bar, the part after &state=.");
 console.log("");
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const code = await new Promise((resolve) => rl.question("Paste the code here: ", resolve));
+const returnedState = await new Promise((resolve) => rl.question("Paste the state here: ", resolve));
 rl.close();
 
 if (!code.trim()) {
   console.error("No code pasted. Run the script again.");
+  process.exit(1);
+}
+
+if (returnedState.trim() !== state) {
+  console.error("The state does not match the one this script sent. That can mean");
+  console.error("the grant came from somewhere else. Do not use this code -- run");
+  console.error("the script again and finish the grant it started.");
   process.exit(1);
 }
 
@@ -110,3 +126,5 @@ console.log("4. Add this ONE line to your local .env file (no spaces around =), 
 console.log(`GMAIL_REFRESH_TOKEN=${tokens.refresh_token}`);
 console.log("");
 console.log("Do not share this token, do not paste it in chat, and do not commit the .env file.");
+console.log("Once it is in .env, clear this terminal (clear / Clear-Host), so the token");
+console.log("does not sit in your scrollback where anyone looking at the screen can read it.");

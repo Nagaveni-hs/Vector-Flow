@@ -11,16 +11,20 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
     include: {
       _count: { select: { registrations: true } },
-      registrations: { select: { paymentStatus: true, attendance: true } },
+      registrations: { select: { paymentStatus: true, attendance: true, status: true } },
     },
   });
   // Sprint 3 dashboard counts, computed here so the admin page can
   // show them without fetching every registration list. Paid and free
   // come from the event fee type, not from a per-registration fee.
   const withCounts = events.map((event) => {
-    const regs = event.registrations || [];
+    // m12: cancelled registrations are not active ones, so they are
+    // kept out of every count and shown on their own line instead.
+    const regs = (event.registrations || []).filter((r) => r.status !== "CANCELLED");
+    const cancelled = (event.registrations || []).filter((r) => r.status === "CANCELLED").length;
     const counts = {
       total: regs.length,
+      cancelled,
       paid: event.feeType === "PAID" ? regs.length : 0,
       free: event.feeType === "FREE" ? regs.length : 0,
       verified: regs.filter((r) => r.paymentStatus === "VERIFIED").length,

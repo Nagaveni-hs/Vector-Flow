@@ -24,6 +24,7 @@ export async function POST(request) {
   const ids = Array.isArray(body.certificateIds) ? body.certificateIds : [];
   let queued = 0;
   let skipped = 0;
+  const refused = [];
   for (const id of ids) {
     const certificate = await prisma.certificate.findUnique({
       where: { id: String(id) },
@@ -35,6 +36,19 @@ export async function POST(request) {
     }
     if (certificate.status !== "UPLOADED" && certificate.status !== "FAILED") {
       skipped += 1;
+      continue;
+    }
+    // M3: re-check that the student is still REGISTERED and PRESENT
+    // before queueing. Attendance can change and a registration can
+    // be cancelled after upload, and neither must be mailed a
+    // certificate. Refused rows are listed so the admin can see why.
+    if (
+      !certificate.registration ||
+      certificate.registration.status !== "REGISTERED" ||
+      certificate.registration.attendance !== "PRESENT"
+    ) {
+      skipped += 1;
+      refused.push({ certificateId: certificate.id, reason: "NOT_ELIGIBLE_FOR_CERTIFICATE" });
       continue;
     }
     // Claim the certificate and create its mail row together. The
@@ -69,5 +83,5 @@ export async function POST(request) {
       skipped += 1;
     }
   }
-  return ok({ queued, skipped });
+  return ok({ queued, skipped, refused });
 }

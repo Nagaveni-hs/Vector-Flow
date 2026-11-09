@@ -46,8 +46,8 @@ async function main() {
   all = (await check("Public events list", "/api/events", [200])) && all;
   all = (await check("Gallery list", "/api/gallery", [200])) && all;
   all = (await check("Team list", "/api/team", [200])) && all;
-  all = (await check("Sign-in check, signed out is 401", "/api/auth/me", [200, 401])) && all;
-  all = (await check("Admin list, signed out is 401 or 403", "/api/admin/events", [200, 401, 403])) && all;
+  all = (await check("Sign-in check, signed out is 401", "/api/auth/me", [401])) && all;
+  all = (await check("Admin list, signed out is 401 or 403", "/api/admin/events", [401, 403])) && all;
   all = (await check("Cron queue without secret is 403", "/api/cron/process-mail-queue", [403])) && all;
   all = (await check("Cron reminders without secret is 403", "/api/cron/reminders", [403])) && all;
   // P0 middleware checks, signed out (no cookies are sent here, so

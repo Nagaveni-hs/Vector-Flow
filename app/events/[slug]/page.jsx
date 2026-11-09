@@ -28,6 +28,10 @@ export default function EventDetail({ params }) {
   const [error, setError] = useState("");
   const [form, setForm] = useState({ name: "", usn: "", email: "", branch: "", semester: "", phone: "", paymentScreenshotUrl: "" });
   const [message, setMessage] = useState("");
+  // M14: disable the submit button while the request runs and after
+  // success, so a double click cannot submit twice.
+  const [submitting, setSubmitting] = useState(false);
+  const [registered, setRegistered] = useState(false);
 
   useEffect(() => {
     fetch(`/api/events/${params.slug}`)
@@ -62,22 +66,31 @@ export default function EventDetail({ params }) {
 
   async function register(e) {
     e.preventDefault();
+    if (submitting || registered) return;
     setMessage("");
     if (event.feeType === "PAID" && !form.paymentScreenshotUrl) {
       setMessage(HUMAN.PAYMENT_REQUIRED);
       return;
     }
-    const res = await fetch(`/api/events/${params.slug}/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, semester: form.semester ? Number(form.semester) : null }),
-    });
-    const json = await res.json();
-    if (!json.ok) {
-      setMessage(HUMAN[json.error] || HUMAN.INVALID_FILE);
-      return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/events/${params.slug}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, semester: form.semester ? Number(form.semester) : null }),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        setMessage(HUMAN[json.error] || HUMAN.INVALID_FILE);
+        return;
+      }
+      setRegistered(true);
+      setMessage("You are registered. You can see this event on Participation.");
+    } catch {
+      setMessage(HUMAN.INVALID_FILE);
+    } finally {
+      setSubmitting(false);
     }
-    setMessage("You are registered. You can see this event on Participation.");
   }
 
   if (error) {
@@ -121,7 +134,7 @@ export default function EventDetail({ params }) {
     event.startAt &&
     event.endAt &&
     new Date(event.startAt).toDateString() !== new Date(event.endAt).toDateString();
-  const feeLabel = event.feeType === "PAID" ? `Rs ${event.feeAmount}` : "Free";
+  const feeLabel = event.feeType === "PAID" ? `₹${event.feeAmount}` : "Free";
   const registrationHref = event.registrationMode === "EXTERNAL"
     ? event.externalRegistrationUrl
     : user
@@ -229,7 +242,7 @@ export default function EventDetail({ params }) {
               <div className="event-payment-card__details">
                 <div>
                   <span>Amount</span>
-                  <strong>Rs {event.feeAmount}</strong>
+                  <strong>₹{event.feeAmount}</strong>
                 </div>
                 <div>
                   <span>Pay to</span>
@@ -324,8 +337,8 @@ export default function EventDetail({ params }) {
                 </div>
               )}
 
-              <button className="event-registration-submit" type="submit">
-                Register for this event <span aria-hidden="true">→</span>
+              <button className="event-registration-submit" type="submit" disabled={submitting || registered}>
+                {submitting ? "Registering..." : registered ? "Registered" : (<>Register for this event <span aria-hidden="true">→</span></>)}
               </button>
               {message && (
                 <p className={`event-registration-message${message.startsWith("You are registered") ? " is-success" : ""}`} role="status">

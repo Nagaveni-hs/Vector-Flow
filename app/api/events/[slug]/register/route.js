@@ -4,7 +4,7 @@ import { ok, fail } from "@/lib/json";
 import { buildRegistrationMail, sendMail } from "@/lib/mail";
 
 export async function POST(request, { params }) {
-  const session = getSession();
+  const session = await getSession();
   if (!session) return fail("NOT_SIGNED_IN", 401);
   const event = await prisma.event.findUnique({ where: { slug: params.slug } });
   if (!event) return fail("EVENT_NOT_FOUND", 404);
@@ -16,6 +16,9 @@ export async function POST(request, { params }) {
   const now = new Date();
   if (event.registrationOpensAt && now < event.registrationOpensAt) return fail("REGISTRATION_CLOSED", 400);
   if (event.registrationClosesAt && now > event.registrationClosesAt) return fail("REGISTRATION_CLOSED", 400);
+  // m18: even when the close time was set after the start, nobody
+  // registers once the event has begun.
+  if (event.startAt && now >= new Date(event.startAt)) return fail("REGISTRATION_CLOSED", 400);
   const body = await request.json();
   if (!body.name || !body.usn) return fail("INVALID_FILE", 400);
   // P1 (B8): the email is the signed-in user's own college email,
@@ -102,29 +105,42 @@ export async function POST(request, { params }) {
     // the registration. A duplicate attempt never reaches here: it
     // returns ALREADY_REGISTERED below, with no mail at all.
     let mailStatus = "FAILED";
+    let mail = null;
+    let result = null;
     try {
-      const mail = buildRegistrationMail(event, registration);
-      const result = await sendMail({
+      mail = buildRegistrationMail(event, registration);
+      result = await sendMail({
         to: registration.email,
         subject: mail.subject,
         text: mail.text,
         html: mail.html,
       });
       mailStatus = result.sent ? "SENT" : "FAILED";
-      await prisma.mailLog.create({
-        data: {
-          eventId: event.id,
-          userId: registration.userId,
-          toEmail: registration.email,
-          type: "REGISTRATION",
-          subject: mail.subject,
-          status: mailStatus,
-          error: result.sent ? null : result.error,
-          sentAt: result.sent ? new Date() : null,
-        },
-      });
     } catch {
       mailStatus = "FAILED";
+    }
+    // m14: the mail-log write has its own try/catch, as the announce
+    // route already does. One try/catch used to wrap both the send
+    // and the log write, so a log failure after a successful send
+    // wrongly reported the mail as FAILED and left no log row.
+    if (mail && result) {
+      try {
+        await prisma.mailLog.create({
+          data: {
+            eventId: event.id,
+            userId: registration.userId,
+            toEmail: registration.email,
+            type: "REGISTRATION",
+            subject: mail.subject,
+            status: mailStatus,
+            error: result.sent ? null : result.error,
+            sentAt: result.sent ? new Date() : null,
+          },
+        });
+      } catch {
+        // The mail already went out (or failed on its own terms);
+        // a log-write failure must not change the reported status.
+      }
     }
     return ok({ registration, mailStatus }, 201);
   } catch (e) {

@@ -46,6 +46,12 @@ export async function PUT(request, { params }) {
   if (data.title !== undefined) data.title = String(data.title).trim();
   if (data.description !== undefined) data.description = String(data.description).trim();
   if (body.feeAmount !== undefined) data.feeAmount = body.feeAmount ? Number(body.feeAmount) : null;
+  // m16: a FREE event stores no fee amount. The effective fee type
+  // is the one being saved, or the stored one when the edit did
+  // not touch it.
+  if ((body.feeType !== undefined ? body.feeType : existing.feeType) === "FREE") {
+    data.feeAmount = null;
+  }
   if (body.startAt) data.startAt = new Date(body.startAt);
   if (body.endAt !== undefined) data.endAt = body.endAt ? new Date(body.endAt) : null;
   if (body.registrationOpensAt !== undefined) data.registrationOpensAt = body.registrationOpensAt ? new Date(body.registrationOpensAt) : null;
@@ -54,7 +60,9 @@ export async function PUT(request, { params }) {
     const event = await prisma.event.update({ where: { id: existing.id }, data });
     return ok({ event });
   } catch (e) {
-    if (e && e.code === "P2002") return fail("INVALID_FILE", 400);
+    // m15: a taken slug gets its own code, so the admin knows what
+    // to change, instead of the generic "could not save".
+    if (e && e.code === "P2002") return fail("SLUG_TAKEN", 400);
     return fail("INVALID_FILE", 400);
   }
 }

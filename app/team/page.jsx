@@ -15,6 +15,7 @@ export default function Team() {
 
   function load(selectedYear) {
     setLoading(true);
+    setError("");
     const query = selectedYear ? `?year=${encodeURIComponent(selectedYear)}` : "";
     fetch(`/api/team${query}`)
       .then((r) => r.json())
@@ -36,7 +37,19 @@ export default function Team() {
   }, []);
 
   if (loading) return <p>Loading...</p>;
-  if (error) return <p className="error">{error}</p>;
+  // m35: a failed load gets a Try again button, like the homepage
+  // already has, instead of plain error text with no way forward.
+  if (error)
+    return (
+      <div className="content-page team-page">
+        <p className="error">{error}</p>
+        <p>
+          <button type="button" onClick={() => load(year)}>
+            Try again
+          </button>
+        </p>
+      </div>
+    );
   return (
     <div className="content-page team-page">
       <header className="page-heading page-heading--split">

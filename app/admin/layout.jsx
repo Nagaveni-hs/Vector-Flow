@@ -8,7 +8,7 @@ import { prisma } from "@/lib/db";
 // the role re-read from the DB, so the sidebar and admin pages are
 // never even rendered for anyone who is not an admin right now.
 export default async function AdminLayout({ children }) {
-  const session = getSession();
+  const session = await getSession();
   if (!session) redirect("/signin");
   const user = await prisma.user.findUnique({
     where: { id: session.userId },

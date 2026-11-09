@@ -31,13 +31,16 @@
 }
 
 html {
-  min-width: 320px;
   scroll-behavior: smooth;
 }
 
 body {
   min-height: 100vh;
   margin: 0;
+  /* m31: the old 320px min-width on html is gone, and sideways
+     scroll is clipped here instead, so nothing narrower than 320px
+     -- or any overflowing child -- can scroll the page sideways. */
+  overflow-x: clip;
   display: flex;
   flex-direction: column;
   background:
@@ -91,7 +94,8 @@ textarea:focus-visible {
 }
 
 button {
-  min-height: 42px;
+  /* m30: tap targets are at least 44px. */
+  min-height: 44px;
   padding: 9px 15px;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
@@ -429,7 +433,7 @@ th {
   position: relative;
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 12px;
   border-radius: var(--radius-sm);
   color: var(--color-navy-900);
@@ -475,7 +479,7 @@ th {
 
 .site-nav__signin {
   display: inline-flex;
-  min-height: 40px;
+  min-height: 44px;
   align-items: center;
   padding: 0 16px;
   border: 1px solid var(--color-blue-700);
@@ -508,16 +512,16 @@ th {
 }
 
 .site-nav__signout {
-  min-height: 38px;
+  min-height: 44px;
   padding: 7px 12px;
   font-size: 12px;
 }
 
 .site-menu-toggle {
   display: none;
-  width: 42px;
-  height: 42px;
-  min-height: 42px;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
   padding: 0;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
@@ -630,7 +634,7 @@ th {
 
 .admin-sidebar__link {
   display: flex;
-  min-height: 42px;
+  min-height: 44px;
   align-items: center;
   padding: 8px 11px;
   border-radius: var(--radius-sm);
@@ -716,9 +720,9 @@ th {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
-    min-height: 40px;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
     margin-left: auto;
     border-radius: var(--radius-sm);
     border: 1px solid var(--color-border);
@@ -831,9 +835,9 @@ th {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
-    min-height: 34px;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
     padding: 0;
     border-radius: var(--radius-sm);
     border: 1px solid rgb(108 91 208 / 30%);
@@ -1009,8 +1013,7 @@ th {
   max-width: 650px;
 }
 
-.home-eyebrow,
-.home-section-kicker {
+.home-eyebrow {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1182,10 +1185,21 @@ th {
   background: linear-gradient(180deg, #f1effb 0%, #f8f7fd 100%);
 }
 
+/* m32: the kicker used to share a rule with .home-eyebrow and then
+   re-assert its margin, colour, and size in a second rule below.
+   It now has one rule of its own, with the margin it actually
+   renders with (10px, not 18px). */
 .home-section-kicker {
-  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
   color: var(--color-blue-700);
   font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  line-height: 1.4;
+  text-transform: uppercase;
 }
 
 .home-section-heading h2,
@@ -1908,12 +1922,18 @@ th {
   box-shadow: var(--shadow-card);
 }
 
-.event-detail-section {
-  padding: clamp(22px, 4vw, 34px);
+/* m32: this rule used to sit far below with the registration form
+   rules. It is the same card, so it lives with the card's other
+   rule now; the properties do not overlap, so nothing renders
+   differently. */
+.event-registration-card {
+  position: sticky;
+  top: 100px;
+  overflow: hidden;
 }
 
-.event-detail-section__eyebrow {
-  color: var(--color-blue-700);
+.event-detail-section {
+  padding: clamp(22px, 4vw, 34px);
 }
 
 .event-detail-section h2,
@@ -2029,12 +2049,6 @@ th {
   margin: 0;
   color: var(--color-muted);
   font-size: 11px;
-}
-
-.event-registration-card {
-  position: sticky;
-  top: 100px;
-  overflow: hidden;
 }
 
 .event-registration-card__heading {
@@ -2358,8 +2372,11 @@ th {
 }
 
 
-.content-page,
-.admin-content-page {
+/* m32: this used to be ".content-page, .admin-content-page" with
+   gap 22px, while a second .admin-content-page rule far below set
+   gap 20px -- the later one won silently. The admin gap now lives
+   in one place only (the .admin-content-page rule below, 20px). */
+.content-page {
   display: grid;
   align-content: start;
   gap: 22px;
@@ -2840,6 +2857,13 @@ th {
   color: var(--color-blue-700);
 }
 
+/* m46: the Participation card lists used to carry this layout as
+   an inline style, twice. It is a class now. */
+.participation-card-list {
+  display: grid;
+  gap: 16px;
+}
+
 /* Attended Event Cards */
 .attended-card {
   display: grid;
@@ -2947,7 +2971,7 @@ th {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 14px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-blue-600);
@@ -2971,7 +2995,7 @@ th {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 16px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-blue-700);
@@ -3066,9 +3090,9 @@ th {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  min-height: 34px;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
   padding: 0;
   border-radius: var(--radius-sm);
   border: 1px solid rgb(255 255 255 / 20%);
@@ -3218,7 +3242,7 @@ th {
 
 .admin-dashboard__quick-links a {
   display: inline-flex;
-  min-height: 38px;
+  min-height: 44px;
   align-items: center;
   padding: 0 12px;
   border: 1px solid var(--color-border);

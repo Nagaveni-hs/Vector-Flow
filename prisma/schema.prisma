@@ -82,6 +82,7 @@ model User {
   semester    Int?
   phone       String?
   role        Role     @default(STUDENT)
+  tokenVersion Int     @default(0) @map("token_version")
   createdAt   DateTime @default(now()) @map("created_at")
   lastLoginAt DateTime? @map("last_login_at")
   eventsCreated Event[] @relation("CreatedBy")

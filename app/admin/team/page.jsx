@@ -96,16 +96,29 @@ export default function TeamAdmin() {
       { id: member.id, orderIndex: swapWith.orderIndex },
       { id: swapWith.id, orderIndex: member.orderIndex },
     ];
-    await fetch("/api/admin/team/reorder", {
+    // m38: a failed reorder used to reload silently either way.
+    // The admin now sees when it did not save.
+    const res = await fetch("/api/admin/team/reorder", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ orders }),
     });
+    const json = await res.json().catch(() => null);
+    if (!json || !json.ok) {
+      setMessage("Could not reorder the team. Please try again.");
+      return;
+    }
     load();
   }
 
   async function copyLastYear() {
     setMessage("");
+    // m37: both years are required before the copy is posted, so a
+    // blank copy is refused on the page instead of by the server.
+    if (!copyFrom.trim() || !copyTo.trim()) {
+      setMessage("Choose both years first: the year to copy from and the new year to copy to.");
+      return;
+    }
     const res = await fetch("/api/admin/team/copy", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
