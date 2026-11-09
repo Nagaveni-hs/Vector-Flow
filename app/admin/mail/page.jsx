@@ -6,6 +6,7 @@
 "use client";
 
 import { useState } from "react";
+import Toast, { useToast } from "@/components/Toast";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -82,7 +83,7 @@ export default function MailPage() {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [fileNote, setFileNote] = useState("");
-  const [message, setMessage] = useState("");
+  const { toast, showToast, hideToast } = useToast();
   const [sending, setSending] = useState(false);
 
   // m40: the live recipient count, from the same split-and-dedupe
@@ -120,7 +121,6 @@ export default function MailPage() {
     e.target.value = "";
     if (!file) return;
     setFileNote("");
-    setMessage("");
     try {
       if (/\.csv$/i.test(file.name)) {
         const text = await file.text();
@@ -148,18 +148,17 @@ export default function MailPage() {
 
   async function send(e) {
     e.preventDefault();
-    setMessage("");
     const recipients = recipientList();
     if (recipients.length === 0) {
-      setMessage("Add at least one email address to the To box, or load one from a file first.");
+      showToast("Add at least one email address to the To box, or load one from a file first.", "error");
       return;
     }
     if (!subject.trim()) {
-      setMessage("Write a subject first.");
+      showToast("Write a subject first.", "error");
       return;
     }
     if (!body.trim()) {
-      setMessage("Write the mail body first.");
+      showToast("Write the mail body first.", "error");
       return;
     }
     if (!window.confirm(`Send this mail to ${recipients.length} address${recipients.length === 1 ? "" : "es"}?`)) {
@@ -174,18 +173,19 @@ export default function MailPage() {
       });
       const json = await res.json();
       if (!json.ok) {
-        setMessage("Could not send the mail. Please try again.");
+        showToast("Could not send the mail. Please try again.", "error");
         return;
       }
       const { sent, failed, total } = json.data;
-      setMessage(
+      showToast(
         `Done: ${sent} sent, ${failed} failed, out of ${total}.` +
           (failed > 0
             ? " The failed addresses are logged, and mail may have failed because the mail setup is not working yet — check the mail settings."
-            : "")
+            : ""),
+        failed > 0 ? "info" : "success"
       );
     } catch {
-      setMessage("Could not send the mail. Please try again.");
+      showToast("Could not send the mail. Please try again.", "error");
     } finally {
       setSending(false);
     }
@@ -234,7 +234,7 @@ export default function MailPage() {
         <button type="submit" disabled={sending}>
           {sending ? "Sending..." : "Send mail"}
         </button>
-        {message && <p>{message}</p>}
+        <Toast toast={toast} onClose={hideToast} />
       </form>
     </div>
   );

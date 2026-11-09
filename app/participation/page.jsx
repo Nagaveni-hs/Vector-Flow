@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import FileUpload from "@/components/FileUpload";
+import Skeleton from "@/components/Skeleton";
+import Toast, { useToast } from "@/components/Toast";
 
 function formatEventDate(value) {
   if (!value) return "Date to be announced";
@@ -29,7 +31,7 @@ export default function Participation() {
   // in (401) or for another reason. Only the first one gets a
   // Sign-in link; anything else gets a Try again button.
   const [authError, setAuthError] = useState(false);
-  const [message, setMessage] = useState("");
+  const { toast, showToast, hideToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("attended");
   const [viewingCert, setViewingCert] = useState(null);
@@ -93,7 +95,6 @@ export default function Participation() {
   }, [viewingCert]);
 
   async function reupload(registration, url) {
-    setMessage("");
     const res = await fetch(`/api/registrations/${registration.id}/reupload`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -101,15 +102,14 @@ export default function Participation() {
     });
     const json = await res.json();
     if (!json.ok) {
-      setMessage("Could not upload that screenshot. Please try again.");
+      showToast("Could not upload that screenshot. Please try again.", "error");
       return;
     }
-    setMessage("New screenshot uploaded. Your payment is back under review.");
+    showToast("New screenshot uploaded. Your payment is back under review.", "success");
     load();
   }
 
   async function cancelRegistration(registration) {
-    setMessage("");
     const isPaid = registration.event?.feeType === "PAID";
     const note = isPaid
       ? " Cancelling does not refund the money automatically -- payment was manual UPI, so ask the club admin for a refund by hand."
@@ -122,16 +122,17 @@ export default function Participation() {
     });
     const json = await res.json();
     if (!json.ok) {
-      if (json.error === "ALREADY_CANCELLED") setMessage("This registration is already cancelled.");
-      else if (json.error === "CANNOT_CANCEL_ATTENDED") setMessage("You cannot cancel after attendance was marked Present.");
-      else if (json.error === "REGISTRATION_CLOSED") setMessage("You cannot cancel after the event has started.");
-      else setMessage("Could not cancel that registration. Please try again.");
+      if (json.error === "ALREADY_CANCELLED") showToast("This registration is already cancelled.", "error");
+      else if (json.error === "CANNOT_CANCEL_ATTENDED") showToast("You cannot cancel after attendance was marked Present.", "error");
+      else if (json.error === "REGISTRATION_CLOSED") showToast("You cannot cancel after the event has started.", "error");
+      else showToast("Could not cancel that registration. Please try again.", "error");
       return;
     }
-    setMessage(
+    showToast(
       json.data?.paidRefundNote
         ? `Registration cancelled. ${json.data.paidRefundNote}`
-        : "Registration cancelled. You can register again for this event later if you change your mind."
+        : "Registration cancelled. You can register again for this event later if you change your mind.",
+      "success"
     );
     load();
   }
@@ -144,12 +145,11 @@ export default function Participation() {
   }
 
   async function downloadCertificate(registration) {
-    setMessage("");
     try {
       const res = await fetch(`/api/certificates/${registration.certificate.id}/download`);
       const json = await res.json();
       if (!json.ok || !json.data?.downloadUrl) {
-        setMessage("Certificate download is not available yet.");
+        showToast("Certificate download is not available yet.", "error");
         return;
       }
       // Create temporary anchor to initiate direct download
@@ -162,32 +162,47 @@ export default function Participation() {
       a.click();
       a.remove();
     } catch {
-      setMessage("Could not download the certificate right now. Please try again.");
+      showToast("Could not download the certificate right now. Please try again.", "error");
     }
   }
 
   async function viewCertificate(registration) {
-    setMessage("");
     setViewerLoading(true);
     setViewingCert({ registration, url: null });
     try {
       const res = await fetch(`/api/certificates/${registration.certificate.id}/download`);
       const json = await res.json();
       if (!json.ok || !json.data?.downloadUrl) {
-        setMessage("Certificate is not ready for viewing yet.");
+        showToast("Certificate is not ready for viewing yet.", "error");
         setViewingCert(null);
         return;
       }
       setViewingCert({ registration, url: json.data.downloadUrl });
     } catch {
-      setMessage("Could not load the certificate viewer. Please try again.");
+      showToast("Could not load the certificate viewer. Please try again.", "error");
       setViewingCert(null);
     } finally {
       setViewerLoading(false);
     }
   }
 
-  if (loading) return <p>Loading...</p>;
+  if (loading)
+    return (
+      <div className="content-page participation-page" aria-label="Loading participation" aria-busy="true">
+        <div className="card">
+          <Skeleton variant="text" count={2} />
+        </div>
+        <Skeleton variant="row" count={1} />
+        <section className="participation-stats" aria-hidden="true">
+          {[0, 1, 2].map((item) => (
+            <div className="participation-stat-card" key={item}>
+              <Skeleton variant="text" count={2} />
+            </div>
+          ))}
+        </section>
+        <Skeleton variant="row" count={3} />
+      </div>
+    );
 
   if (error) {
     return (
@@ -219,7 +234,7 @@ export default function Participation() {
         <p>Your registrations, verified attendance, and E-Participation Certificates in one place.</p>
       </header>
 
-      {message && <p className="status-message" role="status">{message}</p>}
+      <Toast toast={toast} onClose={hideToast} />
 
       {/* Student Profile Card */}
       {user && (

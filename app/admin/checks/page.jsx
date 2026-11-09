@@ -57,7 +57,16 @@ export default function Checks() {
     run();
   }, []);
 
-  if (loading) return <p>Loading...</p>;
+  if (loading)
+    return (
+      <div className="admin-content-page checks-page" aria-label="Loading local checks" aria-busy="true">
+        <div className="skeleton-card">
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+        </div>
+      </div>
+    );
   return (
     <div className="admin-content-page checks-page">
       <h1>Local checks</h1>

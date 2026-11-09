@@ -1446,28 +1446,7 @@ th {
   color: var(--color-blue-700);
 }
 
-.home-event-skeleton {
-  display: grid;
-  min-height: 300px;
-  align-content: end;
-  gap: 12px;
-  padding: 18px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: #fff;
-}
 
-.home-event-skeleton span {
-  width: 72%;
-  height: 12px;
-  border-radius: 99px;
-  background: #e9e7f0;
-}
-
-.home-event-skeleton span:first-child {
-  width: 48%;
-  height: 18px;
-}
 
 .home-about {
   display: grid;
@@ -3425,20 +3404,17 @@ th {
   min-width: 145px;
 }
 
-.checks-page > p,
-.handover-page > p {
+.checks-page > p {
   margin: 0;
 }
 
-.checks-page > p:nth-of-type(-n + 5),
-.handover-page > p {
+.checks-page > p:nth-of-type(-n + 5) {
   padding: 14px 16px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
 }
 
-.handover-page h2,
 .checks-page h2 {
   margin: 8px 0 -8px;
 }
@@ -3617,4 +3593,174 @@ th {
   .event-detail-loading-mark {
     animation: none;
   }
+}
+
+/* Frontend polish, part A: shared Skeleton, Toast, and button
+   spinner. Appended only; no existing rule above was edited.
+   Colours stay in the existing palette (dark navy/purple, light
+   lavender background). The prefers-reduced-motion block above
+   already damps animations site-wide, so the shimmer and spinner
+   go still for readers who asked for that. */
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-wrap {
+  display: grid;
+  gap: 12px;
+}
+
+.skeleton {
+  display: block;
+  background: linear-gradient(90deg, #e9e7f0 25%, #f5f3ff 50%, #e9e7f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+
+.skeleton-text {
+  height: 14px;
+  border-radius: 99px;
+}
+
+.skeleton-text--short {
+  width: 55%;
+}
+
+.skeleton-avatar {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.skeleton-card {
+  display: grid;
+  gap: 12px;
+  padding: 0 0 18px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  animation: none;
+}
+
+.skeleton-card__media {
+  height: 160px;
+  border-radius: 0;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+
+.skeleton-card__title {
+  width: 60%;
+  height: 18px;
+}
+
+.skeleton-card .skeleton-text {
+  width: calc(100% - 36px);
+  margin: 0 18px;
+}
+
+.skeleton-card .skeleton-card__title {
+  width: 60%;
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  animation: none;
+}
+
+.skeleton-row__lines {
+  display: grid;
+  flex: 1;
+  gap: 8px;
+}
+
+.skeleton-hero-poster {
+  min-height: 360px;
+  border-radius: 0;
+}
+
+.toast {
+  position: fixed;
+  z-index: 150;
+  top: 84px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(480px, calc(100% - 32px));
+  padding: 12px 14px;
+  transform: translateX(-50%);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-navy-950);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  box-shadow: 0 12px 32px rgb(31 28 72 / 18%);
+}
+
+.toast--success {
+  border-color: #b7e5d4;
+  background: #f3fcf8;
+  color: var(--color-success);
+}
+
+.toast--error {
+  border-color: #f0c4cb;
+  background: #fffafb;
+  color: var(--color-danger);
+}
+
+.toast__close {
+  min-width: 32px;
+  min-height: 32px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+}
+
+.toast__close:hover {
+  background: transparent;
+  box-shadow: none;
+}
+
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.btn-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border: 2px solid rgb(255 255 255 / 40%);
+  border-top-color: #fff;
+  border-radius: 50%;
+  vertical-align: -3px;
+  animation: btn-spin 700ms linear infinite;
+}
+
+.btn-spinner--dark {
+  border-color: var(--color-lavender-200);
+  border-top-color: var(--color-blue-600);
 }

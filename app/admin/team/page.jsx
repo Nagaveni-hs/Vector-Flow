@@ -20,6 +20,7 @@ export default function TeamAdmin() {
   const [draftYear, setDraftYear] = useState("");
   const [copyFrom, setCopyFrom] = useState("");
   const [copyTo, setCopyTo] = useState("");
+  const [copyError, setCopyError] = useState("");
   const [preview, setPreview] = useState(null);
 
   function load() {
@@ -116,9 +117,11 @@ export default function TeamAdmin() {
     // m37: both years are required before the copy is posted, so a
     // blank copy is refused on the page instead of by the server.
     if (!copyFrom.trim() || !copyTo.trim()) {
+      setCopyError("Choose both years first: the year to copy from and the new year to copy to.");
       setMessage("Choose both years first: the year to copy from and the new year to copy to.");
       return;
     }
+    setCopyError("");
     const res = await fetch("/api/admin/team/copy", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -163,7 +166,16 @@ export default function TeamAdmin() {
   const years = [...new Set(members.map((m) => m.academicYear))].sort().reverse();
   const liveYear = members.find((m) => m.isCurrentYear)?.academicYear || "none";
 
-  if (loading) return <p>Loading...</p>;
+  if (loading)
+    return (
+      <div className="admin-content-page team-admin-page" aria-label="Loading team" aria-busy="true">
+        <div className="skeleton-card">
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+        </div>
+      </div>
+    );
   if (error) return <p className="error">{error}</p>;
   return (
     <div className="admin-content-page team-admin-page">
@@ -183,8 +195,9 @@ export default function TeamAdmin() {
         {editing && <button type="button" onClick={() => { setEditing(null); setForm({ name: "", designation: "", photoUrl: "", bio: "", orderIndex: "", academicYear: "" }); }}>Cancel edit</button>}
       </form>
       <h2>Copy last year as a draft</h2>
-      <label>From year<input value={copyFrom} onChange={(e) => setCopyFrom(e.target.value)} placeholder="2025-26" /></label>
-      <label>To new year<input value={copyTo} onChange={(e) => setCopyTo(e.target.value)} placeholder="2026-27" /></label>
+      <label>From year<input value={copyFrom} onChange={(e) => { setCopyFrom(e.target.value); setCopyError(""); }} placeholder="2025-26" /></label>
+      <label>To new year<input value={copyTo} onChange={(e) => { setCopyTo(e.target.value); setCopyError(""); }} placeholder="2026-27" /></label>
+      {copyError && <p className="field-error" role="alert">{copyError}</p>}
       <p><button onClick={copyLastYear}>Copy last year</button></p>
       <h2>Preview and publish</h2>
       <label>
