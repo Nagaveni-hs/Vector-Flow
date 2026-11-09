@@ -18,27 +18,47 @@ export async function POST(request) {
   const fromYear = String(body.fromYear || "").trim();
   const toYear = String(body.toYear || "").trim();
   if (!fromYear || !toYear || fromYear === toYear) return fail("INVALID_FILE", 400);
-  const existing = await prisma.teamMember.findMany({ where: { academicYear: toYear } });
-  if (existing.length > 0) return fail("YEAR_ALREADY_EXISTS", 400);
-  const source = await prisma.teamMember.findMany({
-    where: { academicYear: fromYear },
-    orderBy: { orderIndex: "asc" },
-  });
-  if (source.length === 0) return fail("YEAR_NOT_FOUND", 404);
-  await prisma.$transaction(
-    source.map((m) =>
-      prisma.teamMember.create({
-        data: {
-          name: m.name,
-          designation: m.designation,
-          photoUrl: m.photoUrl,
-          bio: m.bio,
-          orderIndex: m.orderIndex,
-          academicYear: toYear,
-          isCurrentYear: false,
-        },
-      })
-    )
-  );
-  return ok({ copied: source.length, fromYear, toYear });
+  // m21: the old check-then-create could race -- two copies at the
+  // same moment both saw an empty toYear and both created members.
+  // The check and the creates now run in one Serializable
+  // transaction, so the second copy aborts instead of duplicating.
+  // (There is no DB unique guard to lean on: many members share one
+  // year, so the year alone can never be unique.)
+  try {
+    const copied = await prisma.$transaction(
+      async (tx) => {
+        const existing = await tx.teamMember.findMany({ where: { academicYear: toYear } });
+        if (existing.length > 0) return { error: "YEAR_ALREADY_EXISTS" };
+        const source = await tx.teamMember.findMany({
+          where: { academicYear: fromYear },
+          orderBy: { orderIndex: "asc" },
+        });
+        if (source.length === 0) return { error: "YEAR_NOT_FOUND" };
+        for (const m of source) {
+          await tx.teamMember.create({
+            data: {
+              name: m.name,
+              designation: m.designation,
+              photoUrl: m.photoUrl,
+              bio: m.bio,
+              orderIndex: m.orderIndex,
+              academicYear: toYear,
+              isCurrentYear: false,
+            },
+          });
+        }
+        return { copied: source.length };
+      },
+      { isolationLevel: "Serializable" }
+    );
+    if (copied.error === "YEAR_ALREADY_EXISTS") return fail("YEAR_ALREADY_EXISTS", 400);
+    if (copied.error === "YEAR_NOT_FOUND") return fail("YEAR_NOT_FOUND", 404);
+    return ok({ copied: copied.copied, fromYear, toYear });
+  } catch (e) {
+    // P2034: the Serializable transaction lost a race with another
+    // copy. The other copy won, so this one reports the year as
+    // already existing.
+    if (e && e.code === "P2034") return fail("YEAR_ALREADY_EXISTS", 400);
+    throw e;
+  }
 }

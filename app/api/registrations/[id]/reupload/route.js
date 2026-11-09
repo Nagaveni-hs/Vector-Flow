@@ -10,7 +10,7 @@ import { ok, fail } from "@/lib/json";
 // and the admin sees the new screenshot for review. No other field
 // on the registration is changed here.
 export async function POST(request, { params }) {
-  const session = getSession();
+  const session = await getSession();
   if (!session) return fail("NOT_SIGNED_IN", 401);
   const registration = await prisma.registration.findUnique({
     where: { id: params.id },
@@ -21,6 +21,11 @@ export async function POST(request, { params }) {
   if (registration.status !== "REGISTERED") return fail("REGISTRATION_NOT_ACTIVE", 400);
   if (registration.paymentStatus !== "REJECTED") return fail("PAYMENT_NOT_REJECTED", 400);
   if (registration.event.feeType !== "PAID") return fail("PAYMENT_NOT_REQUIRED", 400);
+  // m26: a screenshot can only be re-uploaded while the event is
+  // still ahead. After it has started, the payment decision stands.
+  if (registration.event.startAt && new Date(registration.event.startAt) <= new Date()) {
+    return fail("REGISTRATION_CLOSED", 400);
+  }
   const body = await request.json().catch(() => ({}));
   const url = String(body.paymentScreenshotUrl || "");
   if (!url.startsWith("http://") && !url.startsWith("https://")) return fail("INVALID_FILE", 400);

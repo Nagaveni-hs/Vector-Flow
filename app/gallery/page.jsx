@@ -11,7 +11,9 @@ export default function Gallery() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  function load() {
+    setLoading(true);
+    setError("");
     fetch("/api/gallery")
       .then((r) => r.json())
       .then((j) => {
@@ -23,6 +25,10 @@ export default function Gallery() {
         setLoading(false);
         setError("Could not load the gallery.");
       });
+  }
+
+  useEffect(() => {
+    load();
   }, []);
 
   function card(event) {
@@ -40,7 +46,11 @@ export default function Gallery() {
         <div className="gallery-card__content">
           <h3>{event.title}</h3>
           <p className="gallery-card__meta">
-            {event.startAt && new Date(event.startAt).toLocaleString()}
+            {/* m25/m45: event times are shown in IST, like the mail
+                does, not in whatever timezone the visitor's browser
+                happens to be in. */}
+            {event.startAt &&
+              new Date(event.startAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}
             {event.venue ? ` · ${event.venue}` : ""}
           </p>
           <p className="gallery-card__description">{event.description}</p>
@@ -57,7 +67,19 @@ export default function Gallery() {
   }
 
   if (loading) return <p>Loading...</p>;
-  if (error) return <p className="error">{error}</p>;
+  // m35: a failed load gets a Try again button, like the homepage
+  // already has, instead of plain error text with no way forward.
+  if (error)
+    return (
+      <div className="content-page gallery-page">
+        <p className="error">{error}</p>
+        <p>
+          <button type="button" onClick={load}>
+            Try again
+          </button>
+        </p>
+      </div>
+    );
   return (
     <div className="content-page gallery-page">
       <header className="page-heading">

@@ -1,7 +1,9 @@
 // Sprint 6 admin handover note, as a page in the site, so a future
 // admin can read it without hunting for a separate document.
-// This page is for admins only in practice, because only admins
-// are linked to it, but the steps below are the same for any admin.
+// m43: this page is admin-only because the middleware redirects
+// non-admins away from /admin/* AND the admin layout re-checks the
+// role from the database before rendering -- not just because only
+// admins are linked to it.
 
 export default function Handover() {
   return (
@@ -74,20 +76,24 @@ export default function Handover() {
       </p>
       <h2>7. If mail stops working</h2>
       <p>
+        Mail goes through the Gmail API, not through a mail password.
         First, check that the mail settings are still set in the
-        server settings, by their names only: SMTP_HOST, SMTP_PORT,
-        SMTP_USER, SMTP_PASS, MAIL_FROM, STUDENTS_GROUP_EMAIL, and
-        CRON_SECRET. Never paste those values in chat or in a group.
-        If the mail password was changed, update it in the server
-        settings only, and restart the site. If the club mailbox is
-        a college mailbox, the college admin may have turned off
-        the setting that allows the mail password to be made. In
-        that case, ask the college admin to allow it for the club
-        mailbox, and do not try the same password over and over.
-        While mail is down, registrations, payments, attendance,
-        and certificates still work on the site. Mails will be
-        recorded as failed, and certificates will stay queued until
-        mail works again and the queue runs.
+        server settings, by their names only: GMAIL_REFRESH_TOKEN,
+        GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, MAIL_FROM,
+        STUDENTS_GROUP_EMAIL, and CRON_SECRET. Never paste those
+        values in chat or in a group. If the mail token was changed
+        or revoked, make a new one with the token script
+        (`node scripts/get-gmail-token.mjs`, signed in as
+        vectorflow@vvce.ac.in), update GMAIL_REFRESH_TOKEN in the
+        server settings only, and restart the site. There is no mail
+        password to reset -- the college blocks that route, so do not
+        chase it. The old SMTP settings (SMTP_HOST, SMTP_PORT, SMTP_USER)
+        are only a fallback when no Gmail token is set, and they do
+        not work for the club mailbox. While mail is down,
+        registrations, payments, attendance, and certificates still
+        work on the site. Mails will be recorded as failed, and
+        certificates will stay queued until mail works again and the
+        queue runs.
       </p>
       <h2>8. Before the first real event</h2>
       <p>

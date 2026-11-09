@@ -29,6 +29,7 @@ export default function EditEvent({ params }) {
   const [initial, setInitial] = useState(null);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState(null);
+  const [previewError, setPreviewError] = useState(false);
   const [announceMessage, setAnnounceMessage] = useState("");
   const [announcing, setAnnouncing] = useState(false);
   useEffect(() => {
@@ -64,13 +65,21 @@ export default function EditEvent({ params }) {
       })
       .catch(() => setError("Event not found or admin access only."));
   }, [params.id]);
-  useEffect(() => {
+  // M13: a failed preview fetch used to leave "Loading preview..."
+  // on screen forever, because the failure was swallowed silently.
+  // Now it shows an error with a retry button.
+  function loadPreview() {
+    setPreviewError(false);
     fetch(`/api/admin/events/${params.id}/announce`)
       .then((r) => r.json())
       .then((j) => {
         if (j.ok) setPreview(j.data);
+        else setPreviewError(true);
       })
-      .catch(() => {});
+      .catch(() => setPreviewError(true));
+  }
+  useEffect(() => {
+    loadPreview();
   }, [params.id]);
   async function sendAnnouncement() {
     setAnnouncing(true);
@@ -98,7 +107,13 @@ export default function EditEvent({ params }) {
       <section className="card announcement-panel">
         <h2>Announcement mail</h2>
         <p>Editing this event afterwards does not send the announcement again.</p>
-        {!preview && <p>Loading preview...</p>}
+        {!preview && !previewError && <p>Loading preview...</p>}
+        {!preview && previewError && (
+          <p>
+            Could not load the announcement preview.{" "}
+            <button onClick={loadPreview}>Try again</button>
+          </p>
+        )}
         {preview && preview.alreadySent && (
           <p>Announcement already sent. Sending again is blocked.</p>
         )}

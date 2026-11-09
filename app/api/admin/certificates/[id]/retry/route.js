@@ -20,6 +20,16 @@ export async function POST(request, { params }) {
   });
   if (!certificate) return fail("CERTIFICATE_NOT_FOUND", 404);
   if (certificate.status !== "FAILED") return fail("CERTIFICATE_NOT_FAILED", 400);
+  // M3: re-check that the student is still REGISTERED and PRESENT
+  // before queueing again, same as the send route. A student marked
+  // absent or cancelled after the failed send must not be mailed.
+  if (
+    !certificate.registration ||
+    certificate.registration.status !== "REGISTERED" ||
+    certificate.registration.attendance !== "PRESENT"
+  ) {
+    return fail("NOT_ELIGIBLE_FOR_CERTIFICATE", 400);
+  }
   try {
     const claimed = await prisma.$transaction(async (tx) => {
       const updated = await tx.certificate.updateMany({

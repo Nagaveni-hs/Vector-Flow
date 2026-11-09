@@ -44,15 +44,11 @@ self.addEventListener("fetch", (event) => {
   if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request).catch(async (error) => {
-        if (self.navigator.onLine !== false) {
-          console.error(
-            "Navigation request failed while the browser reports online:",
-            event.request.url,
-            error
-          );
-          throw error;
-        }
-
+        // m8: any navigation fetch failure means offline for the
+        // reader, even when the browser still reports itself
+        // online -- navigator.onLine is unreliable and can say
+        // "online" while the network is actually down, which used
+        // to show a bare browser error instead of the offline page.
         const offlinePage = await caches.match("/offline");
         if (offlinePage) return offlinePage;
 

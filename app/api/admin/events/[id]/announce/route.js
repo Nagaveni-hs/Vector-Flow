@@ -37,6 +37,12 @@ export async function POST(request, { params }) {
   if (auth.error) return auth.error;
   const event = await findEvent(params.id);
   if (!event) return fail("EVENT_NOT_FOUND", 404);
+  // M1: only a published or ongoing event may be announced to the
+  // whole college. Announcing a draft (or cancelled) event mails
+  // students about an event nobody can see or register for.
+  if (event.status !== "PUBLISHED" && event.status !== "ONGOING") {
+    return fail("EVENT_NOT_PUBLISHED", 400);
+  }
   if (event.announcementSentAt) {
     return fail("ANNOUNCEMENT_ALREADY_SENT", 400);
   }

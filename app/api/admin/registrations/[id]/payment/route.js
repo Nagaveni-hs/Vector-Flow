@@ -44,12 +44,27 @@ export async function POST(request, { params }) {
     return fail("PAYMENT_NOT_REQUIRED", 400);
   }
   const reason = action === "REJECT" ? String(body.reason).trim().slice(0, 500) : null;
-  const updated = await prisma.registration.update({
-    where: { id: registration.id },
+  // m11: atomic claim, the same conditional-updateMany pattern the
+  // announce and certificate routes already use. Two admin clicks
+  // at the same moment both read PENDING_REVIEW, but only one
+  // update can change the row -- the loser gets PAYMENT_NOT_PENDING
+  // and sends no second mail.
+  const claimed = await prisma.registration.updateMany({
+    where: {
+      id: registration.id,
+      status: "REGISTERED",
+      paymentStatus: "PENDING_REVIEW",
+    },
     data: {
       paymentStatus: action === "VERIFY" ? "VERIFIED" : "REJECTED",
       rejectionReason: reason,
     },
+  });
+  if (claimed.count !== 1) {
+    return fail("PAYMENT_NOT_PENDING", 400);
+  }
+  const updated = await prisma.registration.findUnique({
+    where: { id: registration.id },
   });
   const mail =
     action === "VERIFY"

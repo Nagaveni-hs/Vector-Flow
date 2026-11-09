@@ -21,6 +21,9 @@ function redirectWithClearedState(url) {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
+    // m2: a clearing cookie must carry the same attributes as the
+    // cookie it clears, including secure in production.
+    secure: process.env.NODE_ENV === "production",
     maxAge: 0,
   });
   return res;
@@ -33,17 +36,23 @@ export async function GET(request) {
   const state = url.searchParams.get("state");
   const savedState = cookies().get("vf_oauth_state")?.value;
   if (!code || !state || state !== savedState) {
-    if (getSession()) return redirectWithClearedState(`${appUrl}/`);
+    if (await getSession()) return redirectWithClearedState(`${appUrl}/`);
     return redirectWithClearedState(`${appUrl}/signin?error=NOT_SIGNED_IN`);
   }
   try {
     const userinfo = await exchangeGoogleCode(code);
     if (!isCollegeEmail(userinfo.email)) {
-      if (getSession()) return redirectWithClearedState(`${appUrl}/`);
+      if (await getSession()) return redirectWithClearedState(`${appUrl}/`);
       return redirectWithClearedState(`${appUrl}/signin?error=NOT_COLLEGE_EMAIL`);
     }
+    // m5: Google must confirm this email address is verified before
+    // a user row is created from it.
+    if (userinfo.email_verified !== true) {
+      if (await getSession()) return redirectWithClearedState(`${appUrl}/`);
+      return redirectWithClearedState(`${appUrl}/signin?error=NOT_SIGNED_IN`);
+    }
     if (userinfo.hd && userinfo.hd !== "vvce.ac.in") {
-      if (getSession()) return redirectWithClearedState(`${appUrl}/`);
+      if (await getSession()) return redirectWithClearedState(`${appUrl}/`);
       return redirectWithClearedState(`${appUrl}/signin?error=NOT_COLLEGE_EMAIL`);
     }
     const user = await prisma.user.upsert({
@@ -54,7 +63,7 @@ export async function GET(request) {
         email: userinfo.email.toLowerCase(),
       },
     });
-    const token = signSession({ userId: user.id, role: user.role, email: user.email });
+    const token = signSession({ userId: user.id, role: user.role, email: user.email, tokenVersion: user.tokenVersion ?? 0 });
     const res = NextResponse.redirect(`${appUrl}/`);
     res.cookies.set(sessionCookie(token));
     res.cookies.set({
@@ -63,11 +72,14 @@ export async function GET(request) {
       httpOnly: true,
       sameSite: "lax",
       path: "/",
+      // m2: same secure-in-production flag as when the state cookie
+      // was set, or the browser may keep the old one.
+      secure: process.env.NODE_ENV === "production",
       maxAge: 0,
     });
     return res;
   } catch (e) {
-    if (getSession()) return redirectWithClearedState(`${appUrl}/`);
+    if (await getSession()) return redirectWithClearedState(`${appUrl}/`);
     return redirectWithClearedState(`${appUrl}/signin?error=NOT_SIGNED_IN`);
   }
 }
