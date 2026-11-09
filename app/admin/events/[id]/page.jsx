@@ -99,7 +99,16 @@ export default function EditEvent({ params }) {
     setPreview((p) => (p ? { ...p, alreadySent: true, announcementSentAt: j.data.announcementSentAt } : p));
   }
   if (error) return <p className="error">{error}</p>;
-  if (!initial) return <p>Loading...</p>;
+  if (!initial)
+    return (
+      <div className="admin-content-page event-edit-page" aria-label="Loading event" aria-busy="true">
+        <div className="skeleton-card">
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+        </div>
+      </div>
+    );
   return (
     <div className="admin-content-page event-edit-page">
       <h1>Edit event</h1>
@@ -107,7 +116,13 @@ export default function EditEvent({ params }) {
       <section className="card announcement-panel">
         <h2>Announcement mail</h2>
         <p>Editing this event afterwards does not send the announcement again.</p>
-        {!preview && !previewError && <p>Loading preview...</p>}
+        {!preview && !previewError && (
+          <div className="skeleton-card" aria-label="Loading announcement preview">
+            <div className="skeleton-row" />
+            <div className="skeleton-row" />
+            <div className="skeleton-row" />
+          </div>
+        )}
         {!preview && previewError && (
           <p>
             Could not load the announcement preview.{" "}

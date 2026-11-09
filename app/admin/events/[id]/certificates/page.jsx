@@ -122,7 +122,18 @@ export default function Certificates({ params }) {
   }).length;
 
   if (error) return <p className="error">{error}</p>;
-  if (!event) return <p>Loading...</p>;
+  if (!event) {
+    return (
+      <div className="admin-content-page certificates-page">
+        <h1>Certificates</h1>
+        <div className="skeleton-card" aria-label="Loading certificates">
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="admin-content-page certificates-page">
       <h1>Certificates for {event.title}</h1>
@@ -131,6 +142,9 @@ export default function Certificates({ params }) {
         Preview: Send to {tickedCount}, hold {heldCount}. Held certificates get no mail and are not shown to the student.
       </p>
       {registrations.length === 0 && <p>No certificates yet. No student is marked Present for this event yet.</p>}
+      {registrations.length > 0 && certificates.length === 0 && (
+        <p>No certificates uploaded yet. Upload a PDF for a student marked Present to add one.</p>
+      )}
       {message && <p>{message}</p>}
       <div className="table-wrap">
         <table>

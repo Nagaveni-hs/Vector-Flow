@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import FileUpload from "@/components/FileUpload";
+import Skeleton from "@/components/Skeleton";
 import StatusBadge from "@/components/StatusBadge";
+import Toast, { useToast } from "@/components/Toast";
 
 const HUMAN = {
   NOT_SIGNED_IN: "Please sign in first.",
@@ -27,7 +29,7 @@ export default function EventDetail({ params }) {
   const [user, setUser] = useState(null);
   const [error, setError] = useState("");
   const [form, setForm] = useState({ name: "", usn: "", email: "", branch: "", semester: "", phone: "", paymentScreenshotUrl: "" });
-  const [message, setMessage] = useState("");
+  const { toast, showToast, hideToast } = useToast();
   // M14: disable the submit button while the request runs and after
   // success, so a double click cannot submit twice.
   const [submitting, setSubmitting] = useState(false);
@@ -67,9 +69,8 @@ export default function EventDetail({ params }) {
   async function register(e) {
     e.preventDefault();
     if (submitting || registered) return;
-    setMessage("");
     if (event.feeType === "PAID" && !form.paymentScreenshotUrl) {
-      setMessage(HUMAN.PAYMENT_REQUIRED);
+      showToast(HUMAN.PAYMENT_REQUIRED, "error");
       return;
     }
     setSubmitting(true);
@@ -81,13 +82,13 @@ export default function EventDetail({ params }) {
       });
       const json = await res.json();
       if (!json.ok) {
-        setMessage(HUMAN[json.error] || HUMAN.INVALID_FILE);
+        showToast(HUMAN[json.error] || HUMAN.INVALID_FILE, "error");
         return;
       }
       setRegistered(true);
-      setMessage("You are registered. You can see this event on Participation.");
+      showToast("You are registered. You can see this event on Participation.", "success");
     } catch {
-      setMessage(HUMAN.INVALID_FILE);
+      showToast(HUMAN.INVALID_FILE, "error");
     } finally {
       setSubmitting(false);
     }
@@ -104,9 +105,20 @@ export default function EventDetail({ params }) {
   }
   if (!event) {
     return (
-      <div className="event-detail-state" aria-live="polite">
-        <span className="event-detail-loading-mark" aria-hidden="true" />
-        <p>Loading event details…</p>
+      <div className="event-detail" aria-label="Loading event details" aria-busy="true">
+        <Skeleton variant="text" count={1} />
+        <section className="event-detail-hero" aria-hidden="true">
+          <div className="skeleton skeleton-hero-poster" />
+          <div className="event-detail-hero__content">
+            <Skeleton variant="text" count={4} />
+          </div>
+        </section>
+        <div className="event-detail-layout">
+          <div className="event-detail-main">
+            <Skeleton variant="card" count={1} />
+          </div>
+          <Skeleton variant="card" count={1} />
+        </div>
       </div>
     );
   }
@@ -338,13 +350,9 @@ export default function EventDetail({ params }) {
               )}
 
               <button className="event-registration-submit" type="submit" disabled={submitting || registered}>
-                {submitting ? "Registering..." : registered ? "Registered" : (<>Register for this event <span aria-hidden="true">→</span></>)}
+                {submitting ? (<><span className="btn-spinner" aria-hidden="true" /> Registering...</>) : registered ? "Registered" : (<>Register for this event <span aria-hidden="true">→</span></>)}
               </button>
-              {message && (
-                <p className={`event-registration-message${message.startsWith("You are registered") ? " is-success" : ""}`} role="status">
-                  {message}
-                </p>
-              )}
+              <Toast toast={toast} onClose={hideToast} />
             </form>
           )}
         </aside>

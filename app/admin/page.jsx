@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import Toast, { useToast } from "@/components/Toast";
 
 // Sprint 3 admin dashboard. For each event it shows counts: total,
 // paid and free, verified and pending payment, and present and
@@ -21,9 +22,11 @@ export default function Admin() {
   const [counts, setCounts] = useState(null);
   const [search, setSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("");
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState("");
   const [attendanceFilter, setAttendanceFilter] = useState("");
+  const [busyKey, setBusyKey] = useState(null);
   const [reason, setReason] = useState("");
-  const [message, setMessage] = useState("");
+  const { toast, showToast, hideToast } = useToast();
   const [screenshot, setScreenshot] = useState(null);
 
   // M15: the screenshot modal closes with Escape or a backdrop click,
@@ -50,13 +53,15 @@ export default function Admin() {
       });
   }, []);
 
-  async function loadRegistrations(event) {
+  async function loadRegistrations(event, overrides = {}) {
     setSelected(event);
-    setMessage("");
     const params = new URLSearchParams();
-    if (search) params.set("search", search);
-    if (paymentFilter) params.set("payment", paymentFilter);
-    if (attendanceFilter) params.set("attendance", attendanceFilter);
+    const qSearch = overrides.search !== undefined ? overrides.search : search;
+    const qPayment = overrides.payment !== undefined ? overrides.payment : paymentFilter;
+    const qAttendance = overrides.attendance !== undefined ? overrides.attendance : attendanceFilter;
+    if (qSearch) params.set("search", qSearch);
+    if (qPayment) params.set("payment", qPayment);
+    if (qAttendance) params.set("attendance", qAttendance);
     const query = params.toString() ? `?${params.toString()}` : "";
     const res = await fetch(`/api/admin/events/${event.id}/registrations${query}`);
     const json = await res.json();
@@ -67,27 +72,38 @@ export default function Admin() {
   }
 
   async function paymentAction(registration, action) {
-    setMessage("");
     if (action === "REJECT" && !reason.trim()) {
-      setMessage("A reason is required to reject a payment. Please write it in the reason box first.");
+      showToast("A reason is required to reject a payment. Please write it in the reason box first.", "error");
       return;
     }
-    const res = await fetch(`/api/admin/registrations/${registration.id}/payment`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, reason: reason.trim() }),
-    });
-    const json = await res.json();
-    if (!json.ok) {
-      setMessage("Could not update that payment. It may already have been verified or rejected.");
+    if (action === "REJECT" && !window.confirm(`Reject the payment of ${registration.name} (${registration.usn})? The student will be mailed the reason: ${reason.trim()}`)) {
       return;
     }
-    setMessage(
-      json.data.mailStatus === "SENT"
-        ? `Payment ${action === "VERIFY" ? "verified" : "rejected"} and mail sent to the student.`
-        : `Payment ${action === "VERIFY" ? "verified" : "rejected"}, but the mail could not be sent. Check the mail settings.`
-    );
-    if (selected) loadRegistrations(selected);
+    const key = `${registration.id}:${action}`;
+    setBusyKey(key);
+    try {
+      const res = await fetch(`/api/admin/registrations/${registration.id}/payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, reason: reason.trim() }),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        showToast("Could not update that payment. It may already have been verified or rejected.", "error");
+        return;
+      }
+      showToast(
+        json.data.mailStatus === "SENT"
+          ? `Payment ${action === "VERIFY" ? "verified" : "rejected"} and mail sent to the student.`
+          : `Payment ${action === "VERIFY" ? "verified" : "rejected"}, but the mail could not be sent. Check the mail settings.`,
+        json.data.mailStatus === "SENT" ? "success" : "info"
+      );
+      if (selected) loadRegistrations(selected);
+    } catch {
+      showToast("Could not update that payment. Please try again.", "error");
+    } finally {
+      setBusyKey(null);
+    }
   }
 
   // P1 (B9): re-send the verified/rejected mail without changing the
@@ -95,20 +111,28 @@ export default function Admin() {
   // verified or rejected -- if the mail failed the first time, this
   // is the only way the student ever hears the decision.
   async function resendPaymentMail(registration) {
-    setMessage("");
-    const res = await fetch(`/api/admin/registrations/${registration.id}/payment/resend`, {
-      method: "POST",
-    });
-    const json = await res.json();
-    if (!json.ok) {
-      setMessage("Could not re-send that payment mail. Please try again.");
-      return;
+    const key = `${registration.id}:RESEND`;
+    setBusyKey(key);
+    try {
+      const res = await fetch(`/api/admin/registrations/${registration.id}/payment/resend`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        showToast("Could not re-send that payment mail. Please try again.", "error");
+        return;
+      }
+      showToast(
+        json.data.mailStatus === "SENT"
+          ? "Payment mail re-sent to the student."
+          : "Payment mail could not be sent. Check the mail settings and try again.",
+        json.data.mailStatus === "SENT" ? "success" : "info"
+      );
+    } catch {
+      showToast("Could not re-send that payment mail. Please try again.", "error");
+    } finally {
+      setBusyKey(null);
     }
-    setMessage(
-      json.data.mailStatus === "SENT"
-        ? "Payment mail re-sent to the student."
-        : "Payment mail could not be sent. Check the mail settings and try again."
-    );
   }
 
   // M5: an admin can cancel any registration that is still
@@ -116,7 +140,6 @@ export default function Admin() {
   // Paid cancellations are NOT refunded automatically -- payment was
   // manual UPI, so the admin must refund by hand outside the site.
   async function cancelRegistrationAdmin(registration) {
-    setMessage("");
     const note =
       registration.event?.feeType === "PAID" || selected?.feeType === "PAID"
         ? " This was a paid registration: cancelling does not refund the money. Refund it by hand (UPI) outside the site."
@@ -124,20 +147,29 @@ export default function Admin() {
     if (!window.confirm(`Cancel the registration of ${registration.name} (${registration.usn})?${note}`)) {
       return;
     }
-    const res = await fetch(`/api/registrations/${registration.id}/cancel`, {
-      method: "POST",
-    });
-    const json = await res.json();
-    if (!json.ok) {
-      setMessage("Could not cancel that registration. It may already be cancelled, attended, or past the event start.");
-      return;
+    const key = `${registration.id}:CANCEL`;
+    setBusyKey(key);
+    try {
+      const res = await fetch(`/api/registrations/${registration.id}/cancel`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        showToast("Could not cancel that registration. It may already be cancelled, attended, or past the event start.", "error");
+        return;
+      }
+      showToast(
+        json.data?.paidRefundNote
+          ? `Registration cancelled. ${json.data.paidRefundNote}`
+          : "Registration cancelled.",
+        "success"
+      );
+      if (selected) loadRegistrations(selected);
+    } catch {
+      showToast("Could not cancel that registration. Please try again.", "error");
+    } finally {
+      setBusyKey(null);
     }
-    setMessage(
-      json.data?.paidRefundNote
-        ? `Registration cancelled. ${json.data.paidRefundNote}`
-        : "Registration cancelled."
-    );
-    if (selected) loadRegistrations(selected);
   }
 
   function csvUrl() {
@@ -150,7 +182,49 @@ export default function Admin() {
     return `/api/admin/events/${selected.id}/registrations?${params.toString()}`;
   }
 
-  if (loading) return <p>Loading...</p>;
+  // Client-side filtering of the loaded list: typing in the search
+  // box or changing a filter updates the rows at once, with no extra
+  // fetch. The Apply filters button still re-fetches the same
+  // search / payment-status / attendance filters from the server.
+  // The paid/free type filter is client-side only: a paid row is any
+  // row whose payment status is not NOT_REQUIRED.
+  const filteredRegistrations = registrations.filter((r) => {
+    const q = search.trim().toLowerCase();
+    if (
+      q &&
+      !(
+        String(r.name || "").toLowerCase().includes(q) ||
+        String(r.usn || "").toLowerCase().includes(q) ||
+        String(r.email || "").toLowerCase().includes(q)
+      )
+    ) {
+      return false;
+    }
+    if (paymentTypeFilter === "PAID" && r.paymentStatus === "NOT_REQUIRED") return false;
+    if (paymentTypeFilter === "FREE" && r.paymentStatus !== "NOT_REQUIRED") return false;
+    if (paymentFilter && r.paymentStatus !== paymentFilter) return false;
+    if (attendanceFilter && r.attendance !== attendanceFilter) return false;
+    return true;
+  });
+
+  function clearFilters() {
+    setSearch("");
+    setPaymentTypeFilter("");
+    setPaymentFilter("");
+    setAttendanceFilter("");
+    if (selected) loadRegistrations(selected, { search: "", payment: "", attendance: "" });
+  }
+
+  if (loading)
+    return (
+      <div className="admin-content-page" aria-label="Loading admin dashboard" aria-busy="true">
+        <div className="skeleton-card">
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+        </div>
+      </div>
+    );
   if (error) {
     return (
       <div className="admin-content-page">
@@ -171,7 +245,6 @@ export default function Admin() {
       <nav className="admin-dashboard__quick-links" aria-label="Admin shortcuts">
         <Link href="/admin/events/new">Create a new event</Link>
         <Link href="/admin/team">Team admin</Link>
-        <Link href="/admin/handover">Admin handover note</Link>
         <Link href="/admin/checks">Local checks</Link>
       </nav>
       {events.length === 0 && <p className="empty-state">No events yet.</p>}
@@ -210,9 +283,17 @@ export default function Admin() {
             <input value={search} onChange={(e) => setSearch(e.target.value)} />
           </label>
           <label>
-            Payment
-            <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}>
+            Payment type
+            <select value={paymentTypeFilter} onChange={(e) => setPaymentTypeFilter(e.target.value)}>
               <option value="">All payments</option>
+              <option value="PAID">Paid</option>
+              <option value="FREE">Free</option>
+            </select>
+          </label>
+          <label>
+            Payment status
+            <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}>
+              <option value="">All statuses</option>
               <option value="PENDING_REVIEW">Pending review</option>
               <option value="VERIFIED">Verified</option>
               <option value="REJECTED">Rejected</option>
@@ -234,15 +315,19 @@ export default function Admin() {
           </p>
           {counts && (
             <p>
-              Showing {counts.filtered} of {counts.total} registrations for this event.
+              Showing {filteredRegistrations.length} of {counts.total} registrations for this event.
             </p>
           )}
           <label>
             Reason for rejection (required when you reject)
             <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="For example: amount does not match this event" />
           </label>
-          {message && <p>{message}</p>}
-          {registrations.length === 0 && <p>No registrations match these filters.</p>}
+          <Toast toast={toast} onClose={hideToast} />
+          {filteredRegistrations.length === 0 && (
+            <p>
+              No registrations match. <button onClick={clearFilters}>Clear filters</button>
+            </p>
+          )}
           <div className="table-wrap">
             <table>
               <thead>
@@ -258,7 +343,7 @@ export default function Admin() {
                 </tr>
               </thead>
               <tbody>
-                {registrations.map((r) => (
+                {filteredRegistrations.map((r) => (
                   <tr key={r.id}>
                     <td>{r.name}</td>
                     <td>{r.usn}</td>
@@ -282,15 +367,23 @@ export default function Admin() {
                     <td>
                       {r.paymentStatus === "PENDING_REVIEW" && (
                         <>
-                          <button onClick={() => paymentAction(r, "VERIFY")}>Verify</button>{" "}
-                          <button onClick={() => paymentAction(r, "REJECT")}>Reject</button>
+                          <button onClick={() => paymentAction(r, "VERIFY")} disabled={busyKey === `${r.id}:VERIFY`}>
+                            {busyKey === `${r.id}:VERIFY` ? "Verifying..." : "Verify"}
+                          </button>{" "}
+                          <button onClick={() => paymentAction(r, "REJECT")} disabled={busyKey === `${r.id}:REJECT`}>
+                            {busyKey === `${r.id}:REJECT` ? "Rejecting..." : "Reject"}
+                          </button>
                         </>
                       )}
                       {(r.paymentStatus === "VERIFIED" || r.paymentStatus === "REJECTED") && (
-                        <button onClick={() => resendPaymentMail(r)}>Re-send mail</button>
+                        <button onClick={() => resendPaymentMail(r)} disabled={busyKey === `${r.id}:RESEND`}>
+                          {busyKey === `${r.id}:RESEND` ? "Sending..." : "Re-send mail"}
+                        </button>
                       )}{" "}
                       {r.status === "REGISTERED" && r.attendance !== "PRESENT" && (
-                        <button onClick={() => cancelRegistrationAdmin(r)}>Cancel</button>
+                        <button onClick={() => cancelRegistrationAdmin(r)} disabled={busyKey === `${r.id}:CANCEL`}>
+                          {busyKey === `${r.id}:CANCEL` ? "Cancelling..." : "Cancel"}
+                        </button>
                       )}
                     </td>
                   </tr>

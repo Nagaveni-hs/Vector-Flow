@@ -68,7 +68,18 @@ export default function Attendance({ params }) {
   }
 
   if (error) return <p className="error">{error}</p>;
-  if (!event) return <p>Loading...</p>;
+  if (!event) {
+    return (
+      <div className="admin-content-page attendance-page">
+        <h1>Attendance</h1>
+        <div className="skeleton-card" aria-label="Loading attendance">
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="admin-content-page attendance-page">
       <h1>Attendance for {event.title}</h1>

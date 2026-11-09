@@ -72,7 +72,7 @@ export default function FileUpload({ folder, onUploaded, label }) {
         {label || "Upload image"}
         <input type="file" accept="image/*" onChange={onChange} disabled={uploading} />
       </label>
-      {message && <p>{message}</p>}
+      {message && <p>{uploading && <span className="btn-spinner btn-spinner--dark" aria-hidden="true" />} {message}</p>}
     </div>
   );
 }

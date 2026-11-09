@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Skeleton from "@/components/Skeleton";
 
 // Sprint 5 Gallery. Upcoming events first, then History. Each card
 // shows the event poster if there is one, the date and venue, and
@@ -66,7 +67,19 @@ export default function Gallery() {
     );
   }
 
-  if (loading) return <p>Loading...</p>;
+  if (loading)
+    return (
+      <div className="content-page gallery-page" aria-label="Loading gallery" aria-busy="true">
+        <header className="page-heading">
+          <p className="page-eyebrow">From our community</p>
+          <h1>Gallery</h1>
+          <p>Highlights and moments from Vector Flow events at VVCE.</p>
+        </header>
+        <div className="gallery-grid">
+          <Skeleton variant="card" count={3} />
+        </div>
+      </div>
+    );
   // m35: a failed load gets a Try again button, like the homepage
   // already has, instead of plain error text with no way forward.
   if (error)
