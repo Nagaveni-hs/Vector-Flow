@@ -101,6 +101,35 @@ export default function Admin() {
     );
   }
 
+  // M5: an admin can cancel any registration that is still
+  // REGISTERED and not yet marked Present, before the event starts.
+  // Paid cancellations are NOT refunded automatically -- payment was
+  // manual UPI, so the admin must refund by hand outside the site.
+  async function cancelRegistrationAdmin(registration) {
+    setMessage("");
+    const note =
+      registration.event?.feeType === "PAID" || selected?.feeType === "PAID"
+        ? " This was a paid registration: cancelling does not refund the money. Refund it by hand (UPI) outside the site."
+        : "";
+    if (!window.confirm(`Cancel the registration of ${registration.name} (${registration.usn})?${note}`)) {
+      return;
+    }
+    const res = await fetch(`/api/registrations/${registration.id}/cancel`, {
+      method: "POST",
+    });
+    const json = await res.json();
+    if (!json.ok) {
+      setMessage("Could not cancel that registration. It may already be cancelled, attended, or past the event start.");
+      return;
+    }
+    setMessage(
+      json.data?.paidRefundNote
+        ? `Registration cancelled. ${json.data.paidRefundNote}`
+        : "Registration cancelled."
+    );
+    if (selected) loadRegistrations(selected);
+  }
+
   function csvUrl() {
     if (!selected) return "#";
     const params = new URLSearchParams();
@@ -213,6 +242,7 @@ export default function Admin() {
                   <th>Email</th>
                   <th>Payment</th>
                   <th>Attendance</th>
+                  <th>Status</th>
                   <th>Screenshot</th>
                   <th>Actions</th>
                 </tr>
@@ -229,6 +259,10 @@ export default function Admin() {
                     </td>
                     <td>{r.attendance}</td>
                     <td>
+                      {r.status}
+                      {r.status === "CANCELLED" ? " - cancelled, no refund sent automatically" : ""}
+                    </td>
+                    <td>
                       {r.paymentScreenshotUrl ? (
                         <button onClick={() => setScreenshot(r)}>View screenshot</button>
                       ) : (
@@ -244,6 +278,9 @@ export default function Admin() {
                       )}
                       {(r.paymentStatus === "VERIFIED" || r.paymentStatus === "REJECTED") && (
                         <button onClick={() => resendPaymentMail(r)}>Re-send mail</button>
+                      )}{" "}
+                      {r.status === "REGISTERED" && r.attendance !== "PRESENT" && (
+                        <button onClick={() => cancelRegistrationAdmin(r)}>Cancel</button>
                       )}
                     </td>
                   </tr>

@@ -90,6 +90,41 @@ export default function Participation() {
     load();
   }
 
+  async function cancelRegistration(registration) {
+    setMessage("");
+    const isPaid = registration.event?.feeType === "PAID";
+    const note = isPaid
+      ? " Cancelling does not refund the money automatically -- payment was manual UPI, so ask the club admin for a refund by hand."
+      : "";
+    if (!window.confirm(`Cancel your registration for ${registration.event?.title || "this event"}?${note}`)) {
+      return;
+    }
+    const res = await fetch(`/api/registrations/${registration.id}/cancel`, {
+      method: "POST",
+    });
+    const json = await res.json();
+    if (!json.ok) {
+      if (json.error === "ALREADY_CANCELLED") setMessage("This registration is already cancelled.");
+      else if (json.error === "CANNOT_CANCEL_ATTENDED") setMessage("You cannot cancel after attendance was marked Present.");
+      else if (json.error === "REGISTRATION_CLOSED") setMessage("You cannot cancel after the event has started.");
+      else setMessage("Could not cancel that registration. Please try again.");
+      return;
+    }
+    setMessage(
+      json.data?.paidRefundNote
+        ? `Registration cancelled. ${json.data.paidRefundNote}`
+        : "Registration cancelled. You can register again for this event later if you change your mind."
+    );
+    load();
+  }
+
+  function isCancellable(registration) {
+    if (registration.status !== "REGISTERED") return false;
+    if (registration.attendance === "PRESENT") return false;
+    if (!registration.event?.startAt) return false;
+    return new Date(registration.event.startAt) > new Date();
+  }
+
   async function downloadCertificate(registration) {
     setMessage("");
     try {
@@ -340,6 +375,26 @@ export default function Participation() {
                       <span>Attendance <strong>{r.attendance}</strong></span>
                       <span>Status <strong>{r.status}</strong></span>
                     </div>
+
+                    {r.status === "CANCELLED" && (
+                      <div className="participation-card__notice">
+                        <p>Cancelled{r.cancelledAt ? ` on ${new Date(r.cancelledAt).toLocaleDateString()}` : ""}. You can register again for this event from its page, if registration is still open.</p>
+                        <Link href={`/events/${r.event.slug}`}>Register again</Link>
+                      </div>
+                    )}
+
+                    {isCancellable(r) && (
+                      <div style={{ marginTop: "8px" }}>
+                        <button type="button" onClick={() => cancelRegistration(r)}>
+                          Cancel registration
+                        </button>
+                        {r.event.feeType === "PAID" && (
+                          <p style={{ margin: "6px 0 0" }}>
+                            Paid by UPI: cancelling does not refund the money automatically. Ask the club admin for a refund by hand.
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {r.paymentStatus === "REJECTED" && (
                       <div className="participation-card__notice">

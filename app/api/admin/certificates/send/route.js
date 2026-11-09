@@ -11,6 +11,10 @@ import { ok } from "@/lib/json";
 // Only certificates that are currently UPLOADED, or FAILED from a
 // previous try, can be queued. Already sent or already queued
 // certificates are counted as skipped, never queued twice.
+// P2 (M9): the status change and the mail-row creation happen in one
+// Prisma transaction, claimed atomically, so a certificate can never
+// end up QUEUED with no mail row behind it. If the transaction fails,
+// the certificate stays UPLOADED/FAILED and can be queued again.
 // Returns at once with the count, so the admin page does not wait
 // for mails to go out.
 export async function POST(request) {
@@ -33,22 +37,37 @@ export async function POST(request) {
       skipped += 1;
       continue;
     }
-    await prisma.certificate.update({
-      where: { id: certificate.id },
-      data: { status: "QUEUED", sendTicked: true, mailError: null },
-    });
-    await prisma.mailLog.create({
-      data: {
-        eventId: certificate.eventId,
-        userId: certificate.userId,
-        certificateId: certificate.id,
-        toEmail: certificate.registration.email,
-        type: "CERTIFICATE",
-        subject: `Your certificate: ${certificate.event.title} - Vector Flow`,
-        status: "QUEUED",
-      },
-    });
-    queued += 1;
+    // Claim the certificate and create its mail row together. The
+    // conditional update is the claim: if another admin (or a retry)
+    // already queued this certificate, it updates 0 rows and we skip
+    // it instead of creating a second mail row for the same send.
+    try {
+      const claimed = await prisma.$transaction(async (tx) => {
+        const updated = await tx.certificate.updateMany({
+          where: { id: certificate.id, status: { in: ["UPLOADED", "FAILED"] } },
+          data: { status: "QUEUED", sendTicked: true, mailError: null },
+        });
+        if (updated.count !== 1) return false;
+        await tx.mailLog.create({
+          data: {
+            eventId: certificate.eventId,
+            userId: certificate.userId,
+            certificateId: certificate.id,
+            toEmail: certificate.registration.email,
+            type: "CERTIFICATE",
+            subject: `Your certificate: ${certificate.event.title} - Vector Flow`,
+            status: "QUEUED",
+          },
+        });
+        return true;
+      });
+      if (claimed) queued += 1;
+      else skipped += 1;
+    } catch {
+      // Transaction failed: nothing was written, so the certificate
+      // is still UPLOADED/FAILED and the admin can queue it again.
+      skipped += 1;
+    }
   }
   return ok({ queued, skipped });
 }
