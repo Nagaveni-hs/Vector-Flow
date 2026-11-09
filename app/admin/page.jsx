@@ -26,6 +26,16 @@ export default function Admin() {
   const [message, setMessage] = useState("");
   const [screenshot, setScreenshot] = useState(null);
 
+  // M15: the screenshot modal closes with Escape or a backdrop click,
+  // same pattern as the certificate viewer modal on Participation.
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === "Escape") setScreenshot(null);
+    }
+    if (screenshot) window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [screenshot]);
+
   useEffect(() => {
     fetch("/api/admin/events")
       .then((r) => r.json())
@@ -192,7 +202,7 @@ export default function Admin() {
           <p>
             Before you press Verify, check the payment screenshot against this event's receiver name and
             amount: {selected.paymentReceiverName || "No receiver set"} ({selected.paymentReceiverContact || "No contact set"})
-            {selected.feeType === "PAID" ? `, Rs ${selected.feeAmount}` : ""}. The site cannot check a
+            {selected.feeType === "PAID" ? `, ₹${selected.feeAmount}` : ""}. The site cannot check a
             screenshot automatically.
           </p>
           <label>
@@ -291,8 +301,8 @@ export default function Admin() {
         </section>
       )}
       {screenshot && (
-        <div className="modal">
-          <div className="modal-box">
+        <div className="modal" onClick={() => setScreenshot(null)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <h2>Payment screenshot for {screenshot.name}</h2>
             <p>USN: {screenshot.usn} - Email: {screenshot.email}</p>
             <img src={screenshot.paymentScreenshotUrl} alt="Payment screenshot" />

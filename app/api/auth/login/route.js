@@ -11,6 +11,8 @@ export async function GET() {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
+    // m2: same secure-in-production flag as the session cookie.
+    secure: process.env.NODE_ENV === "production",
     maxAge: 10 * 60,
   });
   return res;

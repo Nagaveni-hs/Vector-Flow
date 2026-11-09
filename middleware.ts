@@ -39,6 +39,11 @@ async function verifySessionEdge(token) {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
     const [header, body, signature] = parts;
+    // m1: same header/expiry checks as lib/auth.js verifySession.
+    // Only HS256 tokens this app signs are accepted, and a token
+    // with no expiry is rejected outright.
+    const headerObj = JSON.parse(base64urlToText(header));
+    if (!headerObj || headerObj.alg !== "HS256") return null;
     const key = await crypto.subtle.importKey(
       "raw",
       new TextEncoder().encode(secret),
@@ -54,7 +59,7 @@ async function verifySessionEdge(token) {
     );
     if (!valid) return null;
     const payload = JSON.parse(base64urlToText(body));
-    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null;
+    if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) return null;
     return payload;
   } catch {
     return null;

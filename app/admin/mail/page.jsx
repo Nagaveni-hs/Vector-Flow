@@ -85,6 +85,15 @@ export default function MailPage() {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
 
+  // m40: the live recipient count, from the same split-and-dedupe
+  // the send uses, so the number on screen is the number that
+  // will actually be sent to.
+  function recipientList() {
+    return [...new Set(
+      to.split(/[\n,;]+/).map((v) => v.trim().toLowerCase()).filter((v) => v !== "")
+    )];
+  }
+
   function mergeAddresses(loaded, skipped) {
     const current = to
       .split(/[\n,;]+/)
@@ -140,9 +149,7 @@ export default function MailPage() {
   async function send(e) {
     e.preventDefault();
     setMessage("");
-    const recipients = [...new Set(
-      to.split(/[\n,;]+/).map((v) => v.trim().toLowerCase()).filter((v) => v !== "")
-    )];
+    const recipients = recipientList();
     if (recipients.length === 0) {
       setMessage("Add at least one email address to the To box, or load one from a file first.");
       return;
@@ -210,6 +217,12 @@ export default function MailPage() {
           To (one address per line, or separated by commas)
           <textarea value={to} onChange={(e) => setTo(e.target.value)} rows={5} required />
         </label>
+        {/* m40: the cap used to fail opaquely at the server once 300
+            addresses were pasted. It is named here, with a live count. */}
+        <p>
+          Maximum 200 recipients per send. {recipientList().length} address
+          {recipientList().length === 1 ? "" : "es"} so far.
+        </p>
         <label>
           Subject
           <input value={subject} onChange={(e) => setSubject(e.target.value)} required />

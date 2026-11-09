@@ -8,7 +8,10 @@ function formatEventDate(value) {
   if (!value) return "Date to be announced";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Date to be announced";
+  // m25: event times are shown in IST, like the mail does, not in
+  // whatever timezone the visitor's browser happens to be in.
   return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -22,6 +25,10 @@ export default function Participation() {
   const [user, setUser] = useState(null);
   const [registrations, setRegistrations] = useState([]);
   const [error, setError] = useState("");
+  // m34: whether the load failed because the reader is not signed
+  // in (401) or for another reason. Only the first one gets a
+  // Sign-in link; anything else gets a Try again button.
+  const [authError, setAuthError] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("attended");
@@ -29,25 +36,36 @@ export default function Participation() {
   const [viewerLoading, setViewerLoading] = useState(false);
 
   function load() {
+    setError("");
+    setAuthError(false);
     // Load student profile & registrations in parallel
     Promise.all([
       fetch("/api/auth/me").then((r) => r.json()).catch(() => null),
-      fetch("/api/me/registrations").then((r) => r.json()),
+      fetch("/api/me/registrations").then(async (r) => ({
+        status: r.status,
+        json: await r.json().catch(() => null),
+      })),
     ])
       .then(([authRes, regRes]) => {
         setLoading(false);
         if (authRes && authRes.ok) {
           setUser(authRes.data.user);
         }
-        if (regRes && regRes.ok) {
-          setRegistrations(regRes.data.registrations);
-        } else {
+        const regJson = regRes && regRes.json;
+        if (regJson && regJson.ok) {
+          setRegistrations(regJson.data.registrations);
+        } else if (regRes && regRes.status === 401) {
+          // m34: only a 401 means "not signed in". Any other
+          // failure used to show the same message with no retry.
+          setAuthError(true);
           setError("Please sign in to see your participation.");
+        } else {
+          setError("Could not load your participation. Please try again.");
         }
       })
       .catch(() => {
         setLoading(false);
-        setError("Please sign in to see your participation.");
+        setError("Could not load your participation. Please try again.");
       });
   }
 
@@ -179,7 +197,13 @@ export default function Participation() {
           <h1>Participation</h1>
           <p>{error}</p>
         </header>
-        <Link className="signin-page__button" href="/signin">Sign in</Link>
+        {authError ? (
+          <Link className="signin-page__button" href="/signin">Sign in</Link>
+        ) : (
+          <button type="button" className="signin-page__button" onClick={load}>
+            Try again
+          </button>
+        )}
       </div>
     );
   }
@@ -292,7 +316,7 @@ export default function Participation() {
                   </button>
                 </div>
               ) : (
-                <div style={{ display: "grid", gap: "16px" }}>
+                <div className="participation-card-list">
                   {attendedRegistrations.map((r) => (
                     <article className="attended-card" key={r.id}>
                       <div className="attended-card__header">
@@ -303,7 +327,7 @@ export default function Participation() {
                           <p className="attended-card__meta">
                             <span>📅 {formatEventDate(r.event.startAt)}</span>
                             {r.event.venue && <span>📍 {r.event.venue}</span>}
-                            <span>💳 {r.event.feeType === "PAID" ? `Rs ${r.event.feeAmount}` : "Free"}</span>
+                            <span>💳 {r.event.feeType === "PAID" ? `₹${r.event.feeAmount}` : "Free"}</span>
                           </p>
                         </div>
                         <span className="attended-badge">
@@ -320,7 +344,7 @@ export default function Participation() {
                               <strong>E-Participation Certificate Ready</strong>
                               <span>
                                 {r.certificate.emailedAt
-                                  ? `Issued on ${new Date(r.certificate.emailedAt).toLocaleDateString()}`
+                                  ? `Issued on ${new Date(r.certificate.emailedAt).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" })}`
                                   : "Verified and available"}
                               </span>
                             </div>
@@ -359,7 +383,7 @@ export default function Participation() {
           {/* Tab 2: All Registrations List */}
           {activeTab === "all" && (
             <div className="participation-section" aria-label="All registered events">
-              <div style={{ display: "grid", gap: "16px" }}>
+              <div className="participation-card-list">
                 {registrations.map((r) => (
                   <article className="card participation-card" key={r.id}>
                     <h2>
@@ -367,7 +391,7 @@ export default function Participation() {
                     </h2>
                     <p className="participation-card__meta">
                       {formatEventDate(r.event.startAt)} -{" "}
-                      {r.event.feeType === "PAID" ? `Rs ${r.event.feeAmount}` : "Free"}
+                      {r.event.feeType === "PAID" ? `₹${r.event.feeAmount}` : "Free"}
                       {r.event.venue ? ` · ${r.event.venue}` : ""}
                     </p>
                     <div className="participation-card__statuses">
@@ -378,7 +402,7 @@ export default function Participation() {
 
                     {r.status === "CANCELLED" && (
                       <div className="participation-card__notice">
-                        <p>Cancelled{r.cancelledAt ? ` on ${new Date(r.cancelledAt).toLocaleDateString()}` : ""}. You can register again for this event from its page, if registration is still open.</p>
+                        <p>Cancelled{r.cancelledAt ? ` on ${new Date(r.cancelledAt).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" })}` : ""}. You can register again for this event from its page, if registration is still open.</p>
                         <Link href={`/events/${r.event.slug}`}>Register again</Link>
                       </div>
                     )}

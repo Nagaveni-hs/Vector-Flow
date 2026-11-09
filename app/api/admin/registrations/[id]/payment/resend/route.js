@@ -27,7 +27,10 @@ export async function POST(request, { params }) {
   if (!registration) return fail("REGISTRATION_NOT_FOUND", 404);
   if (registration.status !== "REGISTERED") return fail("REGISTRATION_NOT_ACTIVE", 400);
   if (registration.paymentStatus !== "VERIFIED" && registration.paymentStatus !== "REJECTED") {
-    return fail("PAYMENT_NOT_PENDING", 400);
+    // m20: this code used to say PAYMENT_NOT_PENDING, which means
+    // the opposite -- the payment was never decided, so there is no
+    // decision mail to re-send.
+    return fail("PAYMENT_NOT_DECIDED", 400);
   }
   if (registration.event.feeType !== "PAID") {
     return fail("PAYMENT_NOT_REQUIRED", 400);

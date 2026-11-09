@@ -40,6 +40,10 @@ export default function Certificates({ params }) {
         if (c.status === "UPLOADED" || c.status === "FAILED") t[c.id] = false;
       });
       setTicks(t);
+    } else {
+      // m39: a failed certificate-list fetch used to leave the list
+      // empty, and every row wrongly said "No certificate uploaded".
+      setError("Could not load the certificates. Please try again.");
     }
   }
 
@@ -109,8 +113,13 @@ export default function Certificates({ params }) {
   }
 
   const tickedCount = Object.keys(ticks).filter((id) => ticks[id]).length;
-  const presentWithCert = registrations.filter((r) => certFor(r.id)).length;
-  const heldCount = presentWithCert - tickedCount > 0 ? presentWithCert - tickedCount : 0;
+  // M16: "hold" counts only UPLOADED/FAILED certificates that are
+  // unticked. Already-SENT and already-QUEUED ones are not held --
+  // they were counted as holds before, overstating the number.
+  const heldCount = registrations.filter((r) => {
+    const cert = certFor(r.id);
+    return cert && (cert.status === "UPLOADED" || cert.status === "FAILED") && !ticks[cert.id];
+  }).length;
 
   if (error) return <p className="error">{error}</p>;
   if (!event) return <p>Loading...</p>;

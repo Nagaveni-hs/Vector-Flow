@@ -29,9 +29,14 @@ export async function GET(request, { params }) {
   const search = (url.searchParams.get("search") || "").trim();
   const payment = url.searchParams.get("payment") || "";
   const attendance = url.searchParams.get("attendance") || "";
+  // m13: filter values go straight into the Prisma where, so an
+  // invalid enum value used to throw an unhandled 500. Only real
+  // enum values are accepted; anything else is ignored.
+  const validPayments = ["NOT_REQUIRED", "PENDING_REVIEW", "VERIFIED", "REJECTED"];
+  const validAttendances = ["UNMARKED", "PRESENT", "ABSENT"];
   const where = { eventId: event.id };
-  if (payment) where.paymentStatus = payment;
-  if (attendance) where.attendance = attendance;
+  if (payment && validPayments.includes(payment)) where.paymentStatus = payment;
+  if (attendance && validAttendances.includes(attendance)) where.attendance = attendance;
   if (search) {
     where.OR = [
       { name: { contains: search, mode: "insensitive" } },
@@ -62,18 +67,26 @@ export async function GET(request, { params }) {
   function count(list, key, value) {
     return list.filter((r) => r[key] === value).length;
   }
+  // m12: cancelled registrations are kept out of the breakdown
+  // counts and shown on their own line. `total` stays the size of
+  // the whole list, because the admin page shows it as
+  // "Showing {filtered} of {total}" against the list itself, which
+  // still includes cancelled rows; `filtered` likewise still
+  // matches the list shown.
+  const active = all.filter((r) => r.status !== "CANCELLED");
   const counts = {
     total: all.length,
+    cancelled: all.length - active.length,
     filtered: registrations.length,
-    paid: event.feeType === "PAID" ? all.length : 0,
-    free: event.feeType === "FREE" ? all.length : 0,
-    verified: count(all, "paymentStatus", "VERIFIED"),
-    pendingReview: count(all, "paymentStatus", "PENDING_REVIEW"),
-    rejected: count(all, "paymentStatus", "REJECTED"),
-    notRequired: count(all, "paymentStatus", "NOT_REQUIRED"),
-    present: count(all, "attendance", "PRESENT"),
-    absent: count(all, "attendance", "ABSENT"),
-    unmarked: count(all, "attendance", "UNMARKED"),
+    paid: event.feeType === "PAID" ? active.length : 0,
+    free: event.feeType === "FREE" ? active.length : 0,
+    verified: count(active, "paymentStatus", "VERIFIED"),
+    pendingReview: count(active, "paymentStatus", "PENDING_REVIEW"),
+    rejected: count(active, "paymentStatus", "REJECTED"),
+    notRequired: count(active, "paymentStatus", "NOT_REQUIRED"),
+    present: count(active, "attendance", "PRESENT"),
+    absent: count(active, "attendance", "ABSENT"),
+    unmarked: count(active, "attendance", "UNMARKED"),
   };
   return ok({ event, registrations, counts });
 }

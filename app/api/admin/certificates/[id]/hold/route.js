@@ -20,12 +20,26 @@ export async function POST(request, { params }) {
   if (action === "HOLD" && certificate.status === "SENT") {
     return fail("CERTIFICATE_ALREADY_SENT", 400);
   }
-  const updated = await prisma.certificate.update({
-    where: { id: certificate.id },
-    data: {
-      status: action === "HOLD" ? "HELD" : "UPLOADED",
-      sendTicked: false,
-    },
+  // M2: holding must also void any pending QUEUED mail row for this
+  // certificate, in the same step. Without this the worker would
+  // still send the held certificate, because it only looks at the
+  // mail row. Unhold keeps its current behaviour (back to UPLOADED):
+  // the voided row is gone, so unholding never re-sends a mail the
+  // admin did not tick again.
+  const updated = await prisma.$transaction(async (tx) => {
+    if (action === "HOLD") {
+      await tx.mailLog.updateMany({
+        where: { certificateId: certificate.id, status: "QUEUED" },
+        data: { status: "FAILED", error: "CERTIFICATE_HELD" },
+      });
+    }
+    return tx.certificate.update({
+      where: { id: certificate.id },
+      data: {
+        status: action === "HOLD" ? "HELD" : "UPLOADED",
+        sendTicked: false,
+      },
+    });
   });
   return ok({ certificate: updated });
 }

@@ -51,6 +51,13 @@ export async function POST(request) {
   if (!registration) return fail("REGISTRATION_NOT_FOUND", 404);
   if (registration.status !== "REGISTERED") return fail("REGISTRATION_NOT_ACTIVE", 400);
   if (registration.attendance !== "PRESENT") return fail("ATTENDANCE_NOT_PRESENT", 400);
+  // M4: a certificate that was already SENT must not be silently
+  // un-sent by a re-upload. The student already received the old
+  // PDF by mail, so uploading again only corrects a file before it
+  // is ever sent. To replace a sent certificate, hold or re-issue
+  // it through a new flow, not this upload.
+  const existing = await prisma.certificate.findUnique({ where: { registrationId } });
+  if (existing && existing.status === "SENT") return fail("CERTIFICATE_ALREADY_SENT", 400);
   const certificate = await prisma.certificate.upsert({
     where: { registrationId },
     update: {
@@ -60,6 +67,7 @@ export async function POST(request) {
       sendTicked: false,
       emailedAt: null,
       mailError: null,
+      uploadedById: auth.session.userId,
     },
     create: {
       eventId: registration.eventId,

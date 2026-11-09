@@ -227,8 +227,8 @@ Keep this terminal open. It must say `Ready`.
 - Test your change in the browser at `http://localhost:3000`.
 - Test on mobile size too: make the browser window narrow, like a phone.
 - Never commit the `.env` file.
-- Never commit `package-lock.json`. Leave it alone, even if Git shows
-  it as changed.
+- `package-lock.json` is tracked in the repo. Commit it when it
+  changes, so everyone installs the same versions.
 - Never push directly to the club repo main branch.
 - Never merge your own pull request without checking it first.
 
@@ -241,12 +241,7 @@ git status
 ```
 
 Look at the list. It must show only the files you meant to change.
-It must NOT show `.env` or `package-lock.json` or any `.patch` file.
-If `package-lock.json` is listed, run:
-
-```
-git restore --staged package-lock.json
-```
+It must NOT show `.env` or any `.patch` file.
 
 ### Step 2 — Run the local checks
 
@@ -453,7 +448,7 @@ Do NOT click it. It deletes work. Stop and tell Nagendra.
 2. Work on a new branch, never on `main`.
 3. Never push directly to club main.
 4. Never merge a pull request without checking the Files changed list.
-5. Never commit `.env` or `package-lock.json`.
+5. Never commit `.env`.
 6. Never share the `.env` file outside the team.
 7. Tell the group after every merge, so everyone syncs.
 8. If you are stuck for more than 30 minutes, ask in the group. Do

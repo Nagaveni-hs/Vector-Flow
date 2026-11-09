@@ -21,7 +21,7 @@ import { ok, fail } from "@/lib/json";
 //   flagged in the response and must be refunded by hand, outside
 //   the site, by the admin. The response says so plainly.
 export async function POST(request, { params }) {
-  const session = getSession();
+  const session = await getSession();
   if (!session) return fail("NOT_SIGNED_IN", 401);
   const registration = await prisma.registration.findUnique({
     where: { id: params.id },

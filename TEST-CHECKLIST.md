@@ -41,6 +41,26 @@ Both only check routes that need no secret. They do not check mail.
   by hiding a button.
 - Announcement mail reaches the students group, and a test student
   receives it. Editing the event afterwards does not send it again.
+  A DRAFT event cannot be announced at all: the announce route
+  refuses it.
+- Saving after changing an event slug works, and the event keeps its
+  new slug.
+- Editing event times: after saving, the times show the same IST
+  time you typed, and editing and saving again does not shift them
+  by 5h30.
+- Uploads with the production CSP active: a poster, a payment QR,
+  a payment screenshot, and a certificate PDF all upload. Open the
+  certificate viewer iframe on Participation: the PDF shows inside
+  the page.
+- Cancel a registration, then register again for the same event:
+  the re-registration works.
+- Re-send a failed payment mail from the admin dashboard, and the
+  student receives it.
+- Standalone mail at /admin/mail: an Excel upload fills To from the
+  email column, duplicate addresses are sent once, pasting more
+  than 200 addresses is capped at 200 per send, and each address
+  gets one mail.
+- Mobile: the hamburger opens the drawer and it closes again.
 - Reminder goes only to registered students, once, about 24 hours
   before the event, and only when the reminder route is called with
   the correct cron secret.
@@ -66,7 +86,8 @@ Both only check routes that need no secret. They do not check mail.
   says so plainly, instead of showing a broken link.
 - PWA: the site installs from the browser on Android Chrome and on
   iPhone Safari, with the Vector Flow placeholder icon. The offline
-  page loads when the device is offline. The icon is a placeholder,
+  page loads when the device is offline, renders styled, and shows
+  a Try again button and a link back home. The icon is a placeholder,
   not the real club logo, and must be replaced before launch if the
   club has a real logo.
 - Mobile: every new page in Sprints 3 to 5 looks right on a phone,

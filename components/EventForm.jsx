@@ -143,6 +143,11 @@ export default function EventForm({ initial, eventId }) {
       </label>
       <button type="submit">Save event</button>
       {message && <p>{message}</p>}
+      {message === "Event saved." && eventId && (
+        <p>
+          <a href="/admin">Back to dashboard</a>
+        </p>
+      )}
     </form>
   );
 }
