@@ -12,6 +12,7 @@ export async function POST(request) {
     "vector-flow/qr",
     "vector-flow/screenshots",
     "vector-flow/certificates",
+    "vector-flow/cert-templates",
     "vector-flow/team",
   ];
   if (!allowed.includes(folder)) return fail("INVALID_FILE", 400);

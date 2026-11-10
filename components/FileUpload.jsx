@@ -4,7 +4,7 @@ import { useState } from "react";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
-export default function FileUpload({ folder, onUploaded, label }) {
+export default function FileUpload({ folder, onUploaded, label, accept }) {
   const [message, setMessage] = useState("");
   // M17: the input is disabled while an upload runs, and its value
   // is reset after handling, so picking the same file again after a
@@ -70,7 +70,7 @@ export default function FileUpload({ folder, onUploaded, label }) {
     <div>
       <label>
         {label || "Upload image"}
-        <input type="file" accept="image/*" onChange={onChange} disabled={uploading} />
+        <input type="file" accept={accept || "image/*"} onChange={onChange} disabled={uploading} />
       </label>
       {message && <p>{uploading && <span className="btn-spinner btn-spinner--dark" aria-hidden="true" />} {message}</p>}
     </div>

@@ -9,7 +9,6 @@ const links = [
   { href: "/admin/events/new", label: "Create event" },
   { href: "/admin/mail", label: "Mail" },
   { href: "/admin/team", label: "Team management" },
-  { href: "/admin/checks", label: "Local checks" },
 ];
 
 export default function AdminSidebar() {

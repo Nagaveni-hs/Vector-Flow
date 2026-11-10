@@ -6,7 +6,7 @@ Nothing in this file claims that a production test passed, because
 this site is not deployed yet. Tick a line only after that exact
 test passes on the build you are testing.
 
-## Quick local checks (can run now)
+## Quick terminal checks (can run now)
 
 Run the local server first, then in a second terminal run:
 
@@ -14,8 +14,7 @@ Run the local server first, then in a second terminal run:
 node scripts/local-checks.js
 ```
 
-Or open the Local checks page as an admin at `/admin/checks`.
-Both only check routes that need no secret. They do not check mail.
+It only checks routes that need no secret. It does not check mail.
 
 - Public events list loads.
 - Gallery list loads.
@@ -78,6 +77,29 @@ Both only check routes that need no secret. They do not check mail.
   runs, in batches of 20, the student gets a mail with the PDF and
   a Download button on Participation. One failed mail does not block
   the rest of the batch, and Retry queues that one student again.
+- Certificate generator: upload a JPG or PNG template, drag the name
+  box to the right place, pick a font, and save. Generate with a real
+  template: the review shows every Present student's name placed on
+  the template, a long name shrinks to fit the box, and two students
+  with the same name are two separate rows with their own USNs.
+  Edit a printed name in the review and it is the edited name that
+  gets saved. Save creates unticked UPLOADED rows in the table below;
+  tick them and Send mails the PDF as usual. Saving again over a
+  certificate that is already SENT is refused for that student only
+  ("already sent — not replaced") and the rest still save. A name
+  with a character the picked font cannot print is flagged in the
+  review and that student alone is skipped. The single finished-PDF
+  upload per row still works alongside the generator. The template,
+  name placement and font can be set up before any student is marked
+  Present: upload a template, place the name box, pick a font and
+  save, with no Present students, and the saved template is still
+  there after a reload. With no Present students the Generate step
+  shows where to mark attendance instead of a Generate button, and
+  nothing can be generated until attendance is marked.
+- Admin dashboard: each event card shows Edit, Show registrations,
+  Attendance and Certificates as one row of same-style buttons, on
+  desktop and on a phone (stacked full-width on a phone, no clipped
+  text). All four go to the same places as before.
 - Team publish: a new year is prepared as a draft, previewed, then
   published. The new year becomes live, the old year is still visible
   under History, and the draft never changed the live page before Publish.
