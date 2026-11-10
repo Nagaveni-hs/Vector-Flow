@@ -2,22 +2,34 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import BrandLogo from "@/components/BrandLogo";
 
-export default function Header() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+// Admin redesign: the server layout passes the signed-in user
+// (or null) as initialUser, so the first paint already shows the
+// right account state. The Header initialises from that prop and
+// never blanks the account slot while refreshing: on navigation it
+// re-fetches /api/auth/me in the background and only swaps the
+// state when the answer arrives, so a slow fetch can never flash
+// the wrong links. A failed fetch keeps the last known state; a
+// clear non-OK answer (signed out) clears it.
+export default function Header({ initialUser = null }) {
+  const [user, setUser] = useState(initialUser);
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
+  const firstFetchSkipped = useRef(true);
 
   // P0 (M3): re-fetch the session on every navigation, not just on
   // mount, so the Header cannot show a stale signed-in / signed-out
-  // state after a client-side navigation. While loading, show nothing
-  // in the account slot instead of flashing a wrong "Sign in" link.
+  // state after a client-side navigation. The first run is skipped:
+  // the server already passed the session in initialUser. While a
+  // refresh is running, the current user stays on screen.
   useEffect(() => {
+    if (firstFetchSkipped.current) {
+      firstFetchSkipped.current = false;
+      return;
+    }
     let cancelled = false;
-    setLoading(true);
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((j) => {
@@ -26,10 +38,8 @@ export default function Header() {
         else setUser(null);
       })
       .catch(() => {
-        if (!cancelled) setUser(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        // Keep the last known state on a failed fetch: a network
+        // blip must not flash the signed-out links.
       });
     return () => {
       cancelled = true;
@@ -151,9 +161,7 @@ export default function Header() {
           </div>
 
           <div className="site-nav__account">
-            {loading ? (
-              <span aria-hidden="true" />
-            ) : user ? (
+            {user ? (
               <>
                 <span className="site-nav__user" title={user.name}>{user.name}</span>
                 <button
