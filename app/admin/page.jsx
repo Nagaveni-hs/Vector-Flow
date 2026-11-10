@@ -215,6 +215,64 @@ export default function Admin() {
     if (selected) loadRegistrations(selected, { search: "", payment: "", attendance: "" });
   }
 
+  // Admin redesign: the dashboard is an overview, not a second
+  // navigation. Every number below comes from the events the page
+  // already loads (GET /api/admin/events, which carries per-event
+  // counts) — no new API route, no extra fetch.
+  const totalRegistrations = events.reduce((n, e) => n + (e.counts ? e.counts.total : 0), 0);
+  const pendingPayments = events.reduce((n, e) => n + (e.counts ? e.counts.pendingReview : 0), 0);
+  const presentTotal = events.reduce((n, e) => n + (e.counts ? e.counts.present : 0), 0);
+
+  // What needs attention next, in plain words. Payments come from
+  // the per-event counts; unmarked attendance is total minus marked;
+  // the certificate nudge is for an ended event with Present
+  // students. What is NOT here, and why: how many certificates are
+  // still unsent is not in the dashboard data — it lives on each
+  // event's Certificates page, linked from the event card below —
+  // and adding a new aggregate route just for that number would be
+  // a bigger change than this redesign needs.
+  const attention = [];
+  events.forEach((event) => {
+    const c = event.counts;
+    if (!c) return;
+    if (c.pendingReview > 0) {
+      attention.push({
+        key: `${event.id}-payments`,
+        text: `${c.pendingReview} payment${c.pendingReview === 1 ? "" : "s"} need${c.pendingReview === 1 ? "s" : ""} review for ${event.title}.`,
+        action: "review",
+        event,
+      });
+    }
+    const unmarked = c.total - c.present - c.absent;
+    if (c.total > 0 && unmarked > 0) {
+      attention.push({
+        key: `${event.id}-attendance`,
+        text: `Attendance is unmarked for ${unmarked} of ${c.total} registrations in ${event.title}.`,
+        href: `/admin/events/${event.id}/attendance`,
+        label: "Mark attendance",
+      });
+    }
+    const ended = event.endAt && new Date(event.endAt) < new Date();
+    if (ended && c.present > 0) {
+      attention.push({
+        key: `${event.id}-certificates`,
+        text: `${c.present} student${c.present === 1 ? " is" : "s are"} marked Present in ${event.title} — upload and send their certificates.`,
+        href: `/admin/events/${event.id}/certificates`,
+        label: "Open certificates",
+      });
+    }
+  });
+
+  function formatDate(value) {
+    if (!value) return "";
+    return new Date(value).toLocaleDateString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  }
+
   if (loading)
     return (
       <div className="admin-content-page" aria-label="Loading admin dashboard" aria-busy="true">
@@ -242,15 +300,59 @@ export default function Admin() {
           <p>Manage events, registrations, attendance, and certificates.</p>
         </div>
       </header>
-      <nav className="admin-dashboard__quick-links" aria-label="Admin shortcuts">
-        <Link href="/admin/events/new">Create a new event</Link>
-        <Link href="/admin/team">Team admin</Link>
-        <Link href="/admin/checks">Local checks</Link>
-      </nav>
-      {events.length === 0 && <p className="empty-state">No events yet.</p>}
+      <section className="admin-overview" aria-labelledby="admin-overview-title">
+        <h2 id="admin-overview-title">At a glance</h2>
+        <ul className="admin-overview__counts">
+          <li>
+            <strong>{events.length}</strong> event{events.length === 1 ? "" : "s"}
+          </li>
+          <li>
+            <strong>{totalRegistrations}</strong> registration{totalRegistrations === 1 ? "" : "s"}
+          </li>
+          <li>
+            <strong>{pendingPayments}</strong> payment{pendingPayments === 1 ? "" : "s"} to review
+          </li>
+          <li>
+            <strong>{presentTotal}</strong> student{presentTotal === 1 ? "" : "s"} present
+          </li>
+        </ul>
+      </section>
+      <section className="admin-attention" aria-labelledby="admin-attention-title">
+        <h2 id="admin-attention-title">Needs attention</h2>
+        {attention.length === 0 ? (
+          <p>
+            {events.length === 0
+              ? "No events yet. Create your first event below to get started."
+              : "Nothing needs attention right now. All payments are reviewed and attendance is marked."}
+          </p>
+        ) : (
+          <ul>
+            {attention.map((item) => (
+              <li key={item.key}>
+                {item.text}{" "}
+                {item.action === "review" ? (
+                  <button onClick={() => loadRegistrations(item.event)}>Review payments</button>
+                ) : (
+                  <Link href={item.href}>{item.label}</Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <h2>Events</h2>
+      {events.length === 0 && (
+        <p className="empty-state">
+          No events yet. <Link href="/admin/events/new">Create your first event</Link> to get started.
+        </p>
+      )}
       {events.map((event) => (
         <article className="card admin-event-card" key={event.id}>
           <h2>{event.title}</h2>
+          <p>
+            {formatDate(event.startAt)}
+            {event.endAt ? ` - ${formatDate(event.endAt)}` : ""}
+          </p>
           <p>
             {event.status} - {event.counts ? event.counts.total : event._count ? event._count.registrations : 0} registrations
           </p>

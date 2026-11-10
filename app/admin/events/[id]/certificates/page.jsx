@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import CertificateUpload from "@/components/CertificateUpload";
 
@@ -138,15 +139,22 @@ export default function Certificates({ params }) {
     <div className="admin-content-page certificates-page">
       <h1>Certificates for {event.title}</h1>
       <p>Only students marked Present are listed here.</p>
-      <p>
-        Preview: Send to {tickedCount}, hold {heldCount}. Held certificates get no mail and are not shown to the student.
-      </p>
-      {registrations.length === 0 && <p>No certificates yet. No student is marked Present for this event yet.</p>}
-      {registrations.length > 0 && certificates.length === 0 && (
-        <p>No certificates uploaded yet. Upload a PDF for a student marked Present to add one.</p>
-      )}
-      {message && <p>{message}</p>}
-      <div className="table-wrap">
+      {registrations.length === 0 ? (
+        <p>
+          Certificates can only be uploaded for students marked Present, and no student is marked Present
+          for this event yet. Mark attendance first, then come back here to upload.{" "}
+          <Link href={`/admin/events/${params.id}/attendance`}>Mark attendance for this event</Link>
+        </p>
+      ) : (
+        <>
+          <p>
+            Preview: Send to {tickedCount}, hold {heldCount}. Held certificates get no mail and are not shown to the student.
+          </p>
+          {certificates.length === 0 && (
+            <p>No certificates uploaded yet. Upload a PDF for a student marked Present to add one.</p>
+          )}
+          {message && <p>{message}</p>}
+          <div className="table-wrap">
         <table>
           <thead>
             <tr>
@@ -205,6 +213,8 @@ export default function Certificates({ params }) {
         deployment, every 5 minutes. Locally, it only runs when someone calls the queue route with the
         cron secret, so a QUEUED certificate will stay queued until that route is called.
       </p>
+        </>
+      )}
     </div>
   );
 }

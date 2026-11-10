@@ -243,7 +243,7 @@ git status
 Look at the list. It must show only the files you meant to change.
 It must NOT show `.env` or any `.patch` file.
 
-### Step 2 — Run the local checks
+### Step 2 — Run the checks script (`node scripts/local-checks.js`)
 
 The dev server must be running in a separate terminal first. Then, in
 a new terminal, in the `Website` folder:
@@ -363,13 +363,11 @@ again.
 - Certificates for an event: `/admin/events/[id]/certificates`
 - Team admin: `/admin/team`
 - Mail: `/admin/mail`
-- Local checks: `/admin/checks`
 
 ## Testing and launch
 
-Full checklist: `TEST-CHECKLIST.md` in this repo root, plus the
-local checks page above and `node scripts/local-checks.js` after
-`npm run dev` is up. Those checks run locally only. They do not
+Full checklist: `TEST-CHECKLIST.md` in this repo root, plus
+`node scripts/local-checks.js` after `npm run dev` is up. Those checks run locally only. They do not
 prove anything about a live production site, because this site is
 not deployed yet.
 
@@ -386,7 +384,7 @@ maskable 512 size, before launch, if the club has a real logo.
 
 ## Common problems and fixes
 
-### "Could not reach the server" when running local checks
+### "Could not reach the server" when running `scripts/local-checks.js`
 
 The dev server is not running. Open a terminal, run `npm run dev`,
 wait for `Ready`, then run the checks in a second terminal.
@@ -461,7 +459,7 @@ Do NOT click it. It deletes work. Stop and tell Nagendra.
 | Open the website | `http://localhost:3000` |
 | Install packages | `npm install` |
 | Update database client | `npx prisma generate` |
-| Run local checks | `node scripts/local-checks.js` |
+| Run the checks script | `node scripts/local-checks.js` |
 | Build the website | `npm run build` |
 | Check what changed | `git status` |
 | Club repo | `https://github.com/vectorflow-club/Vector-Flow` |

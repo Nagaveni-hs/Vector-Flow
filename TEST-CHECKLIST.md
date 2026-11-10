@@ -6,7 +6,7 @@ Nothing in this file claims that a production test passed, because
 this site is not deployed yet. Tick a line only after that exact
 test passes on the build you are testing.
 
-## Quick local checks (can run now)
+## Quick terminal checks (can run now)
 
 Run the local server first, then in a second terminal run:
 
@@ -14,8 +14,7 @@ Run the local server first, then in a second terminal run:
 node scripts/local-checks.js
 ```
 
-Or open the Local checks page as an admin at `/admin/checks`.
-Both only check routes that need no secret. They do not check mail.
+It only checks routes that need no secret. It does not check mail.
 
 - Public events list loads.
 - Gallery list loads.
