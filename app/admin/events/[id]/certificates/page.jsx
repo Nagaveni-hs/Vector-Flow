@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import CertificateUpload from "@/components/CertificateUpload";
+import CertificateGenerator from "@/components/CertificateGenerator";
 
 // Sprint 4 certificates page. Only students marked Present are
 // listed here. For each row the admin can upload a PDF, tick the
@@ -14,6 +14,12 @@ import CertificateUpload from "@/components/CertificateUpload";
 // After sending, refresh this page to see the new status: QUEUED
 // becomes SENT or FAILED after the queue runs. Held certificates
 // get no mail and are not shown to the student.
+// The certificate generator above the table is NOT gated on
+// Present students: the template, name placement and font can be
+// set up before attendance is marked, and they save to the event
+// straight away. Only generating, and the table below it, need
+// Present students — with none Present the generator shows where
+// to mark attendance instead of the Generate button.
 export default function Certificates({ params }) {
   const [event, setEvent] = useState(null);
   const [registrations, setRegistrations] = useState([]);
@@ -139,13 +145,13 @@ export default function Certificates({ params }) {
     <div className="admin-content-page certificates-page">
       <h1>Certificates for {event.title}</h1>
       <p>Only students marked Present are listed here.</p>
-      {registrations.length === 0 ? (
-        <p>
-          Certificates can only be uploaded for students marked Present, and no student is marked Present
-          for this event yet. Mark attendance first, then come back here to upload.{" "}
-          <Link href={`/admin/events/${params.id}/attendance`}>Mark attendance for this event</Link>
-        </p>
-      ) : (
+      <CertificateGenerator
+        eventId={params.id}
+        event={event}
+        registrations={registrations}
+        onSaved={load}
+      />
+      {registrations.length === 0 ? null : (
         <>
           <p>
             Preview: Send to {tickedCount}, hold {heldCount}. Held certificates get no mail and are not shown to the student.

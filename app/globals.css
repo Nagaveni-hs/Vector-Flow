@@ -3257,12 +3257,54 @@ th {
   font-size: 13px;
 }
 
-.admin-event-card p:last-child {
+.admin-event-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding-top: 5px;
+}
+
+/* One row of same-style buttons for each event card: Edit, Show
+   registrations, Attendance, Certificates. Three are links and one
+   is a button, so the link version copies the site's global button
+   look (same size, border, background and text) instead of reading
+   as plain blue text next to a real button. */
+.admin-event-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 9px 15px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-navy-900);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+
+.admin-event-action:hover {
+  border-color: #bdb5df;
+  background: #f5f3ff;
+  color: var(--color-navy-950);
+  box-shadow: 0 5px 14px rgb(49 40 112 / 10%);
+}
+
+.admin-event-action:active {
+  border-color: #aab8ca;
+  background: #e9edf5;
+  color: var(--color-navy-950);
+}
+
+@media (max-width: 700px) {
+  .admin-event-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .admin-registrations {
@@ -3401,6 +3443,167 @@ th {
 .team-admin-page .table-wrap,
 .admin-registrations .table-wrap {
   width: 100%;
+}
+
+/* Certificate generator: the two fonts an admin can pick, loaded
+   from the same origin so the preview shows the real font. Both
+   are SIL Open Font Licence fonts from Google Fonts. */
+@font-face {
+  font-family: "Lora";
+  src: url("/fonts/Lora-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("/fonts/HankenGrotesk-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+.certgen {
+  margin: 16px 0 24px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #fafbfe;
+}
+
+.certgen h2,
+.certgen h3 {
+  margin: 12px 0 8px;
+}
+
+.certgen-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: end;
+  margin: 12px 0;
+}
+
+.certgen-controls fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+
+.certgen-controls label {
+  display: inline-block;
+  margin-right: 12px;
+}
+
+.certgen-controls input[type="number"] {
+  width: 72px;
+  margin-left: 6px;
+}
+
+/* Template preview with the draggable name box over it. */
+.certgen-placement {
+  position: relative;
+  max-width: 842px;
+  margin: 12px 0;
+  touch-action: none;
+  user-select: none;
+}
+
+.certgen-placement img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.certgen-box {
+  position: absolute;
+  border: 2px dashed #6b5ce7;
+  background: rgba(107, 92, 231, 0.08);
+  cursor: move;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.certgen-box__name {
+  white-space: nowrap;
+  line-height: 1;
+  padding-bottom: 2px;
+  color: var(--color-ink);
+}
+
+.certgen-box__handle {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 18px;
+  height: 18px;
+  background: #6b5ce7;
+  cursor: nwse-resize;
+}
+
+/* Review rows: template preview with the name placed, plus the
+   editable printed name and the student's real name and USN. */
+.certgen-review {
+  display: grid;
+  gap: 16px;
+  margin: 12px 0;
+}
+
+.certgen-row {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.certgen-row--removed {
+  opacity: 0.55;
+}
+
+.certgen-row__preview {
+  position: relative;
+}
+
+.certgen-row__preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.certgen-row__name {
+  position: absolute;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  white-space: nowrap;
+  line-height: 1;
+  padding-bottom: 2px;
+  overflow: hidden;
+  color: var(--color-ink);
+}
+
+.certgen-row__details label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.certgen-row__details input[type="text"] {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  margin-top: 4px;
+}
+
+@media (max-width: 700px) {
+  .certgen-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .attendance-page select {

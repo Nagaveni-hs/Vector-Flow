@@ -363,11 +363,11 @@ export default function Admin() {
               {event.counts.present} - Absent: {event.counts.absent}
             </p>
           )}
-          <p>
-            <Link href={`/admin/events/${event.slug}`}>Edit</Link>{" "}
-            <button onClick={() => loadRegistrations(event)}>Show registrations</button>{" "}
-            <Link href={`/admin/events/${event.id}/attendance`}>Attendance</Link>{" "}
-            <Link href={`/admin/events/${event.id}/certificates`}>Certificates</Link>
+          <p className="admin-event-actions">
+            <Link className="admin-event-action" href={`/admin/events/${event.slug}`}>Edit</Link>
+            <button className="admin-event-action" onClick={() => loadRegistrations(event)}>Show registrations</button>
+            <Link className="admin-event-action" href={`/admin/events/${event.id}/attendance`}>Attendance</Link>
+            <Link className="admin-event-action" href={`/admin/events/${event.id}/certificates`}>Certificates</Link>
           </p>
         </article>
       ))}

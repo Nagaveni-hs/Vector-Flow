@@ -113,6 +113,13 @@ model Event {
   driveLink               String?  @map("drive_link")
   status                  EventStatus @default(DRAFT)
   announcementSentAt      DateTime? @map("announcement_sent_at")
+  // Certificate generator: the template image, the font picked for
+  // this event, and where the name goes, stored as one JSON object
+  // so any admin can regenerate later without redoing the setup:
+  // { url, font, box: { x, y, w, h }, size }. Box values are
+  // fractions (0..1) of the template image size, measured from the
+  // top-left corner. Null until the admin sets a template.
+  certTemplate            Json?     @map("cert_template")
   createdById             String   @map("created_by")
   createdBy               User     @relation("CreatedBy", fields: [createdById], references: [id])
   createdAt               DateTime @default(now()) @map("created_at")
