@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 // P0 (B3): admin role is re-read from the DB by the shared
 // requireAdmin() in lib/auth.js, not trusted from the JWT claim.
@@ -32,7 +33,11 @@ export async function GET(request) {
 // PRESENT. The file must be a PDF link. If a certificate already
 // exists for this registration, uploading again replaces its file
 // and resets it to UPLOADED, with send ticked off and no sent date,
-// so a wrong file can be corrected before it is ever sent.
+// so a wrong file can be corrected before it is ever sent. That
+// only applies while the certificate is UPLOADED or FAILED: a
+// QUEUED, HELD, or SENT certificate refuses the re-upload (see
+// below), so a queued send is never dropped and a hold is never
+// silently undone.
 export async function POST(request) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
@@ -58,6 +63,35 @@ export async function POST(request) {
   // it through a new flow, not this upload.
   const existing = await prisma.certificate.findUnique({ where: { registrationId } });
   if (existing && existing.status === "SENT") return fail("CERTIFICATE_ALREADY_SENT", 400);
+  // M3: a re-upload must not bypass HOLD or drop a queued send.
+  // The upsert below resets the row to UPLOADED, which would
+  // silently un-hold a HELD certificate, and a QUEUED one would
+  // leave its mail row orphaned (the worker would park it FAILED /
+  // CERTIFICATE_NOT_QUEUED and the queued send would just vanish).
+  // Refuse both, with a distinct code and message each, so the
+  // admin page can tell the admin what to do instead. fail()
+  // carries no message, so these two refusals build the response
+  // directly in the same { ok: false, error, message } shape.
+  if (existing && existing.status === "QUEUED") {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "CERTIFICATE_QUEUED",
+        message: "This certificate is already queued to be sent. Wait for the mail to go out, or hold it first if it should not be sent.",
+      },
+      { status: 400 }
+    );
+  }
+  if (existing && existing.status === "HELD") {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "CERTIFICATE_HELD",
+        message: "This certificate is held. Unhold it before uploading a new file.",
+      },
+      { status: 400 }
+    );
+  }
   const certificate = await prisma.certificate.upsert({
     where: { registrationId },
     update: {
