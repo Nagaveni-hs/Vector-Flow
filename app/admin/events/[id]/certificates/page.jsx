@@ -28,28 +28,37 @@ export default function Certificates({ params }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [uploads, setUploads] = useState({});
+  // M10: one in-flight key per action, matching the busy-key pattern
+  // on the admin dashboard page, so a double-click cannot queue or
+  // save the same certificate twice.
+  const [busyKey, setBusyKey] = useState(null);
 
   async function load() {
-    const attRes = await fetch(`/api/admin/events/${params.id}/attendance`);
-    const att = await attRes.json();
-    if (!att.ok) {
-      setError("Certificates are for admins only, or this event was not found.");
-      return;
-    }
-    setEvent(att.data.event);
-    setRegistrations(att.data.registrations.filter((r) => r.attendance === "PRESENT" && r.status === "REGISTERED"));
-    const certRes = await fetch(`/api/admin/certificates?eventId=${params.id}`);
-    const cert = await certRes.json();
-    if (cert.ok) {
-      setCertificates(cert.data.certificates);
-      const t = {};
-      cert.data.certificates.forEach((c) => {
-        if (c.status === "UPLOADED" || c.status === "FAILED") t[c.id] = false;
-      });
-      setTicks(t);
-    } else {
-      // m39: a failed certificate-list fetch used to leave the list
-      // empty, and every row wrongly said "No certificate uploaded".
+    setError("");
+    try {
+      const attRes = await fetch(`/api/admin/events/${params.id}/attendance`);
+      const att = await attRes.json();
+      if (!att.ok) {
+        setError("Certificates are for admins only, or this event was not found.");
+        return;
+      }
+      setEvent(att.data.event);
+      setRegistrations(att.data.registrations.filter((r) => r.attendance === "PRESENT" && r.status === "REGISTERED"));
+      const certRes = await fetch(`/api/admin/certificates?eventId=${params.id}`);
+      const cert = await certRes.json();
+      if (cert.ok) {
+        setCertificates(cert.data.certificates);
+        const t = {};
+        cert.data.certificates.forEach((c) => {
+          if (c.status === "UPLOADED" || c.status === "FAILED") t[c.id] = false;
+        });
+        setTicks(t);
+      } else {
+        // m39: a failed certificate-list fetch used to leave the list
+        // empty, and every row wrongly said "No certificate uploaded".
+        setError("Could not load the certificates. Please try again.");
+      }
+    } catch {
       setError("Could not load the certificates. Please try again.");
     }
   }
@@ -63,19 +72,41 @@ export default function Certificates({ params }) {
   }
 
   async function saveUpload(registrationId, fileUrl, fileName) {
+    const key = `upload:${registrationId}`;
+    // The upload button lives inside CertificateUpload, which is not
+    // this page's file, so the in-flight guard lives here: a second
+    // save for the same student while one is running is ignored.
+    if (busyKey === key) return;
+    setBusyKey(key);
     setMessage("");
-    const res = await fetch("/api/admin/certificates", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ registrationId, fileUrl, fileName }),
-    });
-    const json = await res.json();
-    if (!json.ok) {
-      setMessage("Could not save that certificate. Only Present students can get a certificate, and the file must be a PDF.");
-      return;
+    try {
+      const res = await fetch("/api/admin/certificates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationId, fileUrl, fileName }),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        // M10: when the server refuses a re-upload, show its own
+        // message first (for example that the certificate is already
+        // queued, held, or sent). The refusal carries its message
+        // at the top level of the response (the API builds it
+        // directly, because fail() has no message field), so read
+        // json.message first, then the error code, then generic.
+        setMessage(
+          json.message ||
+            json.error ||
+            "Could not save that certificate. Only Present students can get a certificate, and the file must be a PDF."
+        );
+        return;
+      }
+      setMessage("Certificate saved. It is held until you tick it and press Send.");
+      load();
+    } catch {
+      setMessage("Could not save that certificate. Please try again.");
+    } finally {
+      setBusyKey(null);
     }
-    setMessage("Certificate saved. It is held until you tick it and press Send.");
-    load();
   }
 
   async function sendTicked() {
@@ -84,39 +115,65 @@ export default function Certificates({ params }) {
       setMessage("Please tick at least one certificate before you press Send.");
       return;
     }
-    const res = await fetch("/api/admin/certificates/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ certificateIds: ids }),
-    });
-    const json = await res.json();
-    if (!json.ok) {
+    if (busyKey === "send") return;
+    setBusyKey("send");
+    try {
+      const res = await fetch("/api/admin/certificates/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ certificateIds: ids }),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        setMessage("Could not queue those certificates. Please try again.");
+        return;
+      }
+      setMessage(
+        `Queued ${json.data.queued} certificates for sending. ${json.data.skipped} were skipped, because they were already sent or already queued. The queue sends in batches of 20. Refresh this page after the queue runs to see SENT or FAILED.`
+      );
+      setTicks({});
+      load();
+    } catch {
       setMessage("Could not queue those certificates. Please try again.");
-      return;
+    } finally {
+      setBusyKey(null);
     }
-    setMessage(
-      `Queued ${json.data.queued} certificates for sending. ${json.data.skipped} were skipped, because they were already sent or already queued. The queue sends in batches of 20. Refresh this page after the queue runs to see SENT or FAILED.`
-    );
-    setTicks({});
-    load();
   }
 
   async function retry(id) {
-    const res = await fetch(`/api/admin/certificates/${id}/retry`, { method: "POST" });
-    const json = await res.json();
-    setMessage(json.ok ? "That certificate is queued again." : "Could not retry that certificate.");
-    load();
+    const key = `retry:${id}`;
+    if (busyKey === key) return;
+    setBusyKey(key);
+    try {
+      const res = await fetch(`/api/admin/certificates/${id}/retry`, { method: "POST" });
+      const json = await res.json();
+      setMessage(json.ok ? "That certificate is queued again." : "Could not retry that certificate.");
+      load();
+    } catch {
+      setMessage("Could not retry that certificate.");
+    } finally {
+      setBusyKey(null);
+    }
   }
 
   async function hold(id, action) {
-    const res = await fetch(`/api/admin/certificates/${id}/hold`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
-    const json = await res.json();
-    setMessage(json.ok ? (action === "HOLD" ? "Certificate held. No mail will be sent for it." : "Certificate is back to uploaded.") : "Could not change that certificate.");
-    load();
+    const key = `hold:${id}`;
+    if (busyKey === key) return;
+    setBusyKey(key);
+    try {
+      const res = await fetch(`/api/admin/certificates/${id}/hold`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const json = await res.json();
+      setMessage(json.ok ? (action === "HOLD" ? "Certificate held. No mail will be sent for it." : "Certificate is back to uploaded.") : "Could not change that certificate.");
+      load();
+    } catch {
+      setMessage("Could not change that certificate.");
+    } finally {
+      setBusyKey(null);
+    }
   }
 
   const tickedCount = Object.keys(ticks).filter((id) => ticks[id]).length;
@@ -128,7 +185,16 @@ export default function Certificates({ params }) {
     return cert && (cert.status === "UPLOADED" || cert.status === "FAILED") && !ticks[cert.id];
   }).length;
 
-  if (error) return <p className="error">{error}</p>;
+  if (error)
+    return (
+      <div className="admin-content-page certificates-page">
+        <h1>Certificates</h1>
+        <p className="error">{error}</p>
+        <p>
+          <button onClick={load}>Try again</button>
+        </p>
+      </div>
+    );
   if (!event) {
     return (
       <div className="admin-content-page certificates-page">
@@ -198,9 +264,9 @@ export default function Certificates({ params }) {
                     )}
                   </td>
                   <td>
-                    {cert && cert.status === "FAILED" && <button onClick={() => retry(cert.id)}>Retry</button>}{" "}
+                    {cert && cert.status === "FAILED" && <button onClick={() => retry(cert.id)} disabled={busyKey === `retry:${cert.id}`}>{busyKey === `retry:${cert.id}` ? "Retrying..." : "Retry"}</button>}{" "}
                     {cert && cert.status !== "SENT" && cert.status !== "QUEUED" && (
-                      <button onClick={() => hold(cert.id, cert.status === "HELD" ? "UNHOLD" : "HOLD")}>
+                      <button onClick={() => hold(cert.id, cert.status === "HELD" ? "UNHOLD" : "HOLD")} disabled={busyKey === `hold:${cert.id}`}>
                         {cert.status === "HELD" ? "Unhold" : "Hold"}
                       </button>
                     )}
@@ -212,7 +278,7 @@ export default function Certificates({ params }) {
         </table>
       </div>
       <p>
-        <button onClick={sendTicked}>Send ticked certificates</button>
+        <button onClick={sendTicked} disabled={busyKey === "send"}>{busyKey === "send" ? "Sending..." : "Send ticked certificates"}</button>
       </p>
       <p>
         After you press Send, the queue worker sends the mails in batches of 20. It runs on a schedule after

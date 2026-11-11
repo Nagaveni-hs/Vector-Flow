@@ -22,6 +22,11 @@ export default function TeamAdmin() {
   const [copyTo, setCopyTo] = useState("");
   const [copyError, setCopyError] = useState("");
   const [preview, setPreview] = useState(null);
+  // M9: in-flight guards. `saving` covers the add/edit form submit;
+  // `busyKey` covers one row or year action at a time, matching the
+  // busy-key pattern on the admin dashboard page.
+  const [saving, setSaving] = useState(false);
+  const [busyKey, setBusyKey] = useState(null);
 
   function load() {
     fetch("/api/admin/team")
@@ -47,24 +52,32 @@ export default function TeamAdmin() {
 
   async function saveMember(e) {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
     setMessage("");
-    const payload = { ...form, orderIndex: form.orderIndex ? Number(form.orderIndex) : 0 };
-    const url = editing ? `/api/admin/team/${editing}` : "/api/admin/team";
-    const method = editing ? "PUT" : "POST";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const json = await res.json();
-    if (!json.ok) {
-      setMessage("Could not save that member. Name, designation, and academic year are required.");
-      return;
+    try {
+      const payload = { ...form, orderIndex: form.orderIndex ? Number(form.orderIndex) : 0 };
+      const url = editing ? `/api/admin/team/${editing}` : "/api/admin/team";
+      const method = editing ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        setMessage("Could not save that member. Name, designation, and academic year are required.");
+        return;
+      }
+      setMessage(editing ? "Member updated." : "Member added as a draft. It will not show as live until its year is published.");
+      setForm({ name: "", designation: "", photoUrl: "", bio: "", orderIndex: "", academicYear: "" });
+      setEditing(null);
+      load();
+    } catch {
+      setMessage("Could not save that member. Please try again.");
+    } finally {
+      setSaving(false);
     }
-    setMessage(editing ? "Member updated." : "Member added as a draft. It will not show as live until its year is published.");
-    setForm({ name: "", designation: "", photoUrl: "", bio: "", orderIndex: "", academicYear: "" });
-    setEditing(null);
-    load();
   }
 
   function editMember(m) {
@@ -81,10 +94,19 @@ export default function TeamAdmin() {
 
   async function removeMember(id) {
     if (!window.confirm("Remove this team member? This only removes this one row.")) return;
-    const res = await fetch(`/api/admin/team/${id}`, { method: "DELETE" });
-    const json = await res.json();
-    setMessage(json.ok ? "Member removed." : "Could not remove that member.");
-    load();
+    const key = `remove:${id}`;
+    if (busyKey === key) return;
+    setBusyKey(key);
+    try {
+      const res = await fetch(`/api/admin/team/${id}`, { method: "DELETE" });
+      const json = await res.json();
+      setMessage(json.ok ? "Member removed." : "Could not remove that member.");
+      load();
+    } catch {
+      setMessage("Could not remove that member.");
+    } finally {
+      setBusyKey(null);
+    }
   }
 
   async function move(member, direction) {
@@ -99,17 +121,26 @@ export default function TeamAdmin() {
     ];
     // m38: a failed reorder used to reload silently either way.
     // The admin now sees when it did not save.
-    const res = await fetch("/api/admin/team/reorder", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orders }),
-    });
-    const json = await res.json().catch(() => null);
-    if (!json || !json.ok) {
+    const key = `move:${member.id}:${direction}`;
+    if (busyKey === key) return;
+    setBusyKey(key);
+    try {
+      const res = await fetch("/api/admin/team/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orders }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!json || !json.ok) {
+        setMessage("Could not reorder the team. Please try again.");
+        return;
+      }
+      load();
+    } catch {
       setMessage("Could not reorder the team. Please try again.");
-      return;
+    } finally {
+      setBusyKey(null);
     }
-    load();
   }
 
   async function copyLastYear() {
@@ -122,45 +153,69 @@ export default function TeamAdmin() {
       return;
     }
     setCopyError("");
-    const res = await fetch("/api/admin/team/copy", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fromYear: copyFrom, toYear: copyTo }),
-    });
-    const json = await res.json();
-    if (!json.ok) {
-      setMessage("Could not copy that year. Check that the new year is empty and the old year exists.");
-      return;
+    if (busyKey === "copy") return;
+    setBusyKey("copy");
+    try {
+      const res = await fetch("/api/admin/team/copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fromYear: copyFrom, toYear: copyTo }),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        setMessage("Could not copy that year. Check that the new year is empty and the old year exists.");
+        return;
+      }
+      setMessage(`Copied ${json.data.copied} members from ${copyFrom} to ${copyTo} as a draft. The live team has not changed.`);
+      load();
+    } catch {
+      setMessage("Could not copy that year. Please try again.");
+    } finally {
+      setBusyKey(null);
     }
-    setMessage(`Copied ${json.data.copied} members from ${copyFrom} to ${copyTo} as a draft. The live team has not changed.`);
-    load();
   }
 
   async function previewYear() {
-    const res = await fetch(`/api/admin/team/preview?year=${encodeURIComponent(draftYear)}`);
-    const json = await res.json();
-    if (!json.ok) {
+    if (busyKey === "preview") return;
+    setBusyKey("preview");
+    try {
+      const res = await fetch(`/api/admin/team/preview?year=${encodeURIComponent(draftYear)}`);
+      const json = await res.json();
+      if (!json.ok) {
+        setMessage("Could not preview that year.");
+        return;
+      }
+      setPreview(json.data);
+    } catch {
       setMessage("Could not preview that year.");
-      return;
+    } finally {
+      setBusyKey(null);
     }
-    setPreview(json.data);
   }
 
   async function publishYear() {
     if (!window.confirm(`Publish ${draftYear} as the live team? The previous live team will become History, not deleted.`)) return;
-    const res = await fetch("/api/admin/team/publish", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ academicYear: draftYear }),
-    });
-    const json = await res.json();
-    if (!json.ok) {
-      setMessage("Could not publish that year. It may have no members yet.");
-      return;
+    if (busyKey === "publish") return;
+    setBusyKey("publish");
+    try {
+      const res = await fetch("/api/admin/team/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ academicYear: draftYear }),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        setMessage("Could not publish that year. It may have no members yet.");
+        return;
+      }
+      setMessage(`Published ${json.data.publishedYear}. Previous live year was ${json.data.previousYear || "none"}. The old team is now in History.`);
+      setPreview(null);
+      load();
+    } catch {
+      setMessage("Could not publish that year. Please try again.");
+    } finally {
+      setBusyKey(null);
     }
-    setMessage(`Published ${json.data.publishedYear}. Previous live year was ${json.data.previousYear || "none"}. The old team is now in History.`);
-    setPreview(null);
-    load();
   }
 
   const years = [...new Set(members.map((m) => m.academicYear))].sort().reverse();
@@ -191,14 +246,14 @@ export default function TeamAdmin() {
         <label>About (optional)<textarea value={form.bio} onChange={(e) => set("bio", e.target.value)} /></label>
         <label>Order number<input type="number" value={form.orderIndex} onChange={(e) => set("orderIndex", e.target.value)} /></label>
         <label>Academic year, for example 2026-27<input value={form.academicYear} onChange={(e) => set("academicYear", e.target.value)} required /></label>
-        <button type="submit">{editing ? "Update member" : "Add member"}</button>
+        <button type="submit" disabled={saving}>{saving ? "Saving..." : editing ? "Update member" : "Add member"}</button>
         {editing && <button type="button" onClick={() => { setEditing(null); setForm({ name: "", designation: "", photoUrl: "", bio: "", orderIndex: "", academicYear: "" }); }}>Cancel edit</button>}
       </form>
       <h2>Copy last year as a draft</h2>
       <label>From year<input value={copyFrom} onChange={(e) => { setCopyFrom(e.target.value); setCopyError(""); }} placeholder="2025-26" /></label>
       <label>To new year<input value={copyTo} onChange={(e) => { setCopyTo(e.target.value); setCopyError(""); }} placeholder="2026-27" /></label>
       {copyError && <p className="field-error" role="alert">{copyError}</p>}
-      <p><button onClick={copyLastYear}>Copy last year</button></p>
+      <p><button onClick={copyLastYear} disabled={busyKey === "copy"}>{busyKey === "copy" ? "Copying..." : "Copy last year"}</button></p>
       <h2>Preview and publish</h2>
       <label>
         Year to preview or publish
@@ -210,8 +265,8 @@ export default function TeamAdmin() {
         </select>
       </label>
       <p>
-        <button onClick={previewYear} disabled={!draftYear}>Preview</button>{" "}
-        <button onClick={publishYear} disabled={!draftYear}>Publish this year</button>
+        <button onClick={previewYear} disabled={!draftYear || busyKey === "preview"}>{busyKey === "preview" ? "Previewing..." : "Preview"}</button>{" "}
+        <button onClick={publishYear} disabled={!draftYear || busyKey === "publish"}>{busyKey === "publish" ? "Publishing..." : "Publish this year"}</button>
       </p>
       {preview && (
         <div className="card team-admin-preview">
@@ -240,9 +295,9 @@ export default function TeamAdmin() {
                 <td>{m.orderIndex}</td>
                 <td>
                   <button onClick={() => editMember(m)}>Edit</button>{" "}
-                  <button onClick={() => move(m, "up")}>Up</button>{" "}
-                  <button onClick={() => move(m, "down")}>Down</button>{" "}
-                  <button onClick={() => removeMember(m.id)}>Remove</button>
+                  <button onClick={() => move(m, "up")} disabled={busyKey === `move:${m.id}:up`}>Up</button>{" "}
+                  <button onClick={() => move(m, "down")} disabled={busyKey === `move:${m.id}:down`}>Down</button>{" "}
+                  <button onClick={() => removeMember(m.id)} disabled={busyKey === `remove:${m.id}`}>{busyKey === `remove:${m.id}` ? "Removing..." : "Remove"}</button>
                 </td>
               </tr>
             ))}

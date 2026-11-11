@@ -255,6 +255,17 @@ input[type="file"] {
   color: var(--color-danger);
 }
 
+/* M11: validation errors on forms (EventForm, team admin). This
+   class was used by the JSX but styled nowhere, so errors rendered
+   as plain body text with no red or size cue. */
+.field-error {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-danger);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .success {
   color: var(--color-success);
 }
