@@ -45,18 +45,26 @@ export async function POST(request, { params }) {
     text: mail.text,
     html: mail.html,
   });
-  await prisma.mailLog.create({
-    data: {
-      eventId: registration.eventId,
-      userId: registration.userId,
-      toEmail: registration.email,
-      type: isVerified ? "PAYMENT_VERIFIED" : "PAYMENT_REJECTED",
-      subject: mail.subject,
-      status: result.sent ? "SENT" : "FAILED",
-      error: result.sent ? null : result.error,
-      sentAt: result.sent ? new Date() : null,
-    },
-  });
+  // m4 (minors): the log write has its own try/catch, as the
+  // announce/register routes already do. The resend only re-sends
+  // a mail; a log failure must not 500 a decision that stands.
+  try {
+    await prisma.mailLog.create({
+      data: {
+        eventId: registration.eventId,
+        userId: registration.userId,
+        toEmail: registration.email,
+        type: isVerified ? "PAYMENT_VERIFIED" : "PAYMENT_REJECTED",
+        subject: mail.subject,
+        status: result.sent ? "SENT" : "FAILED",
+        error: result.sent ? null : result.error,
+        sentAt: result.sent ? new Date() : null,
+      },
+    });
+  } catch {
+    // The mail already went out (or failed on its own terms);
+    // only the log row is lost.
+  }
   return ok({
     registration,
     mailStatus: result.sent ? "SENT" : "FAILED",

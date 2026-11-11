@@ -36,6 +36,9 @@ export default function Participation() {
   const [activeTab, setActiveTab] = useState("attended");
   const [viewingCert, setViewingCert] = useState(null);
   const [viewerLoading, setViewerLoading] = useState(false);
+  // m28: one in-flight key per cancel / re-upload / download, so a
+  // double-click cannot fire the same action twice.
+  const [busyKey, setBusyKey] = useState(null);
 
   function load() {
     setError("");
@@ -95,21 +98,32 @@ export default function Participation() {
   }, [viewingCert]);
 
   async function reupload(registration, url) {
-    const res = await fetch(`/api/registrations/${registration.id}/reupload`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paymentScreenshotUrl: url }),
-    });
-    const json = await res.json();
-    if (!json.ok) {
+    const key = `reupload:${registration.id}`;
+    if (busyKey === key) return;
+    setBusyKey(key);
+    try {
+      const res = await fetch(`/api/registrations/${registration.id}/reupload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentScreenshotUrl: url }),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        showToast("Could not upload that screenshot. Please try again.", "error");
+        return;
+      }
+      showToast("New screenshot uploaded. Your payment is back under review.", "success");
+      load();
+    } catch {
       showToast("Could not upload that screenshot. Please try again.", "error");
-      return;
+    } finally {
+      setBusyKey(null);
     }
-    showToast("New screenshot uploaded. Your payment is back under review.", "success");
-    load();
   }
 
   async function cancelRegistration(registration) {
+    const key = `cancel:${registration.id}`;
+    if (busyKey === key) return;
     const isPaid = registration.event?.feeType === "PAID";
     const note = isPaid
       ? " Cancelling does not refund the money automatically -- payment was manual UPI, so ask the club admin for a refund by hand."
@@ -117,24 +131,46 @@ export default function Participation() {
     if (!window.confirm(`Cancel your registration for ${registration.event?.title || "this event"}?${note}`)) {
       return;
     }
-    const res = await fetch(`/api/registrations/${registration.id}/cancel`, {
-      method: "POST",
-    });
-    const json = await res.json();
-    if (!json.ok) {
-      if (json.error === "ALREADY_CANCELLED") showToast("This registration is already cancelled.", "error");
-      else if (json.error === "CANNOT_CANCEL_ATTENDED") showToast("You cannot cancel after attendance was marked Present.", "error");
-      else if (json.error === "REGISTRATION_CLOSED") showToast("You cannot cancel after the event has started.", "error");
-      else showToast("Could not cancel that registration. Please try again.", "error");
-      return;
+    setBusyKey(key);
+    try {
+      const res = await fetch(`/api/registrations/${registration.id}/cancel`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        if (json.error === "ALREADY_CANCELLED") {
+          // m28: a second cancel landing after our own success must
+          // not show an "already cancelled" error toast. Mark the
+          // row cancelled locally and stay quiet.
+          setRegistrations((list) =>
+            list.map((r) => (r.id === registration.id ? { ...r, status: "CANCELLED" } : r))
+          );
+          return;
+        }
+        if (json.error === "CANNOT_CANCEL_ATTENDED") showToast("You cannot cancel after attendance was marked Present.", "error");
+        else if (json.error === "REGISTRATION_CLOSED") showToast("You cannot cancel after the event has started.", "error");
+        else showToast("Could not cancel that registration. Please try again.", "error");
+        return;
+      }
+      // Mark the row cancelled at once, so the Cancel button
+      // disappears immediately instead of waiting for the reload.
+      setRegistrations((list) =>
+        list.map((r) =>
+          r.id === registration.id ? { ...r, status: "CANCELLED", cancelledAt: new Date().toISOString() } : r
+        )
+      );
+      showToast(
+        json.data?.paidRefundNote
+          ? `Registration cancelled. ${json.data.paidRefundNote}`
+          : "Registration cancelled. You can register again for this event later if you change your mind.",
+        "success"
+      );
+      load();
+    } catch {
+      showToast("Could not cancel that registration. Please try again.", "error");
+    } finally {
+      setBusyKey(null);
     }
-    showToast(
-      json.data?.paidRefundNote
-        ? `Registration cancelled. ${json.data.paidRefundNote}`
-        : "Registration cancelled. You can register again for this event later if you change your mind.",
-      "success"
-    );
-    load();
   }
 
   function isCancellable(registration) {
@@ -145,6 +181,9 @@ export default function Participation() {
   }
 
   async function downloadCertificate(registration) {
+    const key = `download:${registration.id}`;
+    if (busyKey === key) return;
+    setBusyKey(key);
     try {
       const res = await fetch(`/api/certificates/${registration.certificate.id}/download`);
       const json = await res.json();
@@ -163,10 +202,13 @@ export default function Participation() {
       a.remove();
     } catch {
       showToast("Could not download the certificate right now. Please try again.", "error");
+    } finally {
+      setBusyKey(null);
     }
   }
 
   async function viewCertificate(registration) {
+    if (viewerLoading) return;
     setViewerLoading(true);
     setViewingCert({ registration, url: null });
     try {
@@ -369,6 +411,7 @@ export default function Participation() {
                               type="button"
                               className="btn-cert-view"
                               onClick={() => viewCertificate(r)}
+                              disabled={viewerLoading}
                               title="View certificate preview"
                             >
                               <span aria-hidden="true">👁️</span> View Certificate
@@ -377,6 +420,7 @@ export default function Participation() {
                               type="button"
                               className="btn-cert-download"
                               onClick={() => downloadCertificate(r)}
+                              disabled={busyKey === `download:${r.id}`}
                               title="Download certificate PDF"
                             >
                               <span aria-hidden="true">⬇</span> Download Certificate
@@ -424,8 +468,12 @@ export default function Participation() {
 
                     {isCancellable(r) && (
                       <div style={{ marginTop: "8px" }}>
-                        <button type="button" onClick={() => cancelRegistration(r)}>
-                          Cancel registration
+                        <button
+                          type="button"
+                          onClick={() => cancelRegistration(r)}
+                          disabled={busyKey === `cancel:${r.id}`}
+                        >
+                          {busyKey === `cancel:${r.id}` ? "Cancelling..." : "Cancel registration"}
                         </button>
                         {r.event.feeType === "PAID" && (
                           <p style={{ margin: "6px 0 0" }}>
@@ -453,6 +501,7 @@ export default function Participation() {
                           type="button"
                           className="btn-cert-view"
                           onClick={() => viewCertificate(r)}
+                          disabled={viewerLoading}
                         >
                           <span aria-hidden="true">👁️</span> View Certificate
                         </button>
@@ -460,6 +509,7 @@ export default function Participation() {
                           type="button"
                           className="btn-cert-download"
                           onClick={() => downloadCertificate(r)}
+                          disabled={busyKey === `download:${r.id}`}
                         >
                           <span aria-hidden="true">⬇</span> Download Certificate
                         </button>
@@ -535,6 +585,7 @@ export default function Participation() {
                     type="button"
                     className="btn-cert-download"
                     onClick={() => downloadCertificate(viewingCert.registration)}
+                    disabled={busyKey === `download:${viewingCert.registration.id}`}
                   >
                     Download Certificate
                   </button>

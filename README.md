@@ -349,7 +349,7 @@ in chat, and never in a screenshot. The names the site reads are:
 - GMAIL_REFRESH_TOKEN (mail goes through the Gmail API now; the old
   SMTP password route is only a fallback, and SMTP is blocked for the
   club mailbox, so do not rely on it)
-- SMTP_HOST, SMTP_PORT, SMTP_USER (fallback only, see above)
+- SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS (fallback only, see above)
 
 If mail does not work, check those names first. While mail is down,
 registrations, payments, attendance, and certificates still work on

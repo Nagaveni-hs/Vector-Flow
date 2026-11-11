@@ -6,7 +6,9 @@ import BrandLogo from "@/components/BrandLogo";
 export default function NotFound() {
   return (
     <div className="page-heading">
-      <BrandLogo className="site-footer__logo" />
+      <div style={{ width: "96px", height: "96px" }}>
+        <BrandLogo />
+      </div>
       <p className="page-eyebrow">404</p>
       <h1>Page not found</h1>
       <p>
@@ -14,7 +16,7 @@ export default function NotFound() {
         or go back to the home page to find what you were looking for.
       </p>
       <p>
-        <Link href="/">Go home</Link> · <Link href="/">Browse events</Link>
+        <Link href="/">Go home</Link> · <Link href="/#upcoming-events">Browse events</Link>
       </p>
     </div>
   );

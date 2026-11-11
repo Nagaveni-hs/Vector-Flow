@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 // P0 (B3): admin role is re-read from the DB by the shared
 // requireAdmin() in lib/auth.js, not trusted from the JWT claim.
 import { requireAdmin } from "@/lib/auth";
-import { ok } from "@/lib/json";
+import { ok, fail } from "@/lib/json";
 
 // POST, admin only. Body: { certificateIds: [id, ...] }.
 // This route ticks certificates for sending, and it creates a QUEUED
@@ -22,6 +22,9 @@ export async function POST(request) {
   if (auth.error) return auth.error;
   const body = await request.json().catch(() => ({}));
   const ids = Array.isArray(body.certificateIds) ? body.certificateIds : [];
+  // m9 (minors): cap the batch at 200, matching the mail cap, so
+  // one call cannot queue an unbounded number of certificates.
+  if (ids.length > 200) return fail("TOO_MANY_CERTIFICATES", 400);
   let queued = 0;
   let skipped = 0;
   const refused = [];

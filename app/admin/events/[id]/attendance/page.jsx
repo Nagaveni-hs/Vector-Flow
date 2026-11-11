@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Skeleton from "@/components/Skeleton";
 
 // Sprint 3 attendance page. The admin picks Present, Absent, or
 // Unmarked for each registration, then presses Save all once.
@@ -18,21 +19,31 @@ export default function Attendance({ params }) {
 
   useEffect(() => {
     fetch(`/api/admin/events/${params.id}/attendance`)
-      .then((r) => r.json())
-      .then((j) => {
-        if (!j.ok) {
-          setError("Attendance is for admins only, or this event was not found.");
-          return;
+      .then((r) =>
+        r
+          .json()
+          .catch(() => null)
+          .then((j) => ({ status: r.status, json: j }))
+      )
+      .then(({ status, json }) => {
+        // m19: only a genuine 401/403 is an access error. A 404 is
+        // a missing event; anything else is a load problem.
+        if (json && json.ok) {
+          const initial = {};
+          json.data.registrations.forEach((r) => {
+            initial[r.id] = r.attendance;
+          });
+          setMarks(initial);
+          setEvent({ ...json.data.event, registrations: json.data.registrations });
+        } else if (status === 401 || status === 403) {
+          setError("Attendance is for admins only. Please sign in as an admin.");
+        } else if (status === 404) {
+          setError("This event was not found.");
+        } else {
+          setError("Could not load attendance. Check your connection and try again.");
         }
-        setEvent(j.data.event);
-        const initial = {};
-        j.data.registrations.forEach((r) => {
-          initial[r.id] = r.attendance;
-        });
-        setMarks(initial);
-        setEvent({ ...j.data.event, registrations: j.data.registrations });
       })
-      .catch(() => setError("Attendance is for admins only, or this event was not found."));
+      .catch(() => setError("Could not load attendance. Check your connection and try again."));
   }, [params.id]);
 
   function setMark(id, value) {
@@ -72,15 +83,24 @@ export default function Attendance({ params }) {
     }
   }
 
-  if (error) return <p className="error">{error}</p>;
+  if (error)
+    return (
+      <div className="admin-content-page attendance-page">
+        <h1>Attendance</h1>
+        <p className="error">{error}</p>
+        <p>
+          <button type="button" onClick={() => window.location.reload()}>
+            Try again
+          </button>
+        </p>
+      </div>
+    );
   if (!event) {
     return (
       <div className="admin-content-page attendance-page">
         <h1>Attendance</h1>
-        <div className="skeleton-card" aria-label="Loading attendance">
-          <div className="skeleton-row" />
-          <div className="skeleton-row" />
-          <div className="skeleton-row" />
+        <div aria-label="Loading attendance">
+          <Skeleton variant="row" count={3} />
         </div>
       </div>
     );

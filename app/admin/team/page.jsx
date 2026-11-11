@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import FileUpload from "@/components/FileUpload";
+import Skeleton from "@/components/Skeleton";
 
 // Sprint 5 Team admin. The admin can add, edit, remove, and
 // reorder members, upload a photo, pick an academic year, copy
@@ -30,15 +31,23 @@ export default function TeamAdmin() {
 
   function load() {
     fetch("/api/admin/team")
-      .then((r) => r.json())
-      .then((j) => {
+      .then((r) =>
+        r
+          .json()
+          .catch(() => null)
+          .then((j) => ({ status: r.status, json: j }))
+      )
+      .then(({ status, json }) => {
         setLoading(false);
-        if (j.ok) setMembers(j.data.members);
-        else setError("Team admin is for admins only.");
+        // m19: only a genuine 401/403 is an access error. Any other
+        // failure is a load problem, not a permissions problem.
+        if (json && json.ok) setMembers(json.data.members);
+        else if (status === 401 || status === 403) setError("Team admin is for admins only.");
+        else setError("Could not load the team. Check your connection and try again.");
       })
       .catch(() => {
         setLoading(false);
-        setError("Team admin is for admins only.");
+        setError("Could not load the team. Check your connection and try again.");
       });
   }
 
@@ -220,18 +229,37 @@ export default function TeamAdmin() {
 
   const years = [...new Set(members.map((m) => m.academicYear))].sort().reverse();
   const liveYear = members.find((m) => m.isCurrentYear)?.academicYear || "none";
+  // m26: first/last row within each year, so the Up button on the
+  // first row and the Down button on the last row are disabled
+  // instead of enabled but doing nothing.
+  const yearEnds = {};
+  years.forEach((y) => {
+    const sorted = members
+      .filter((m) => m.academicYear === y)
+      .sort((a, b) => a.orderIndex - b.orderIndex);
+    sorted.forEach((m, i) => {
+      yearEnds[m.id] = { isFirst: i === 0, isLast: i === sorted.length - 1 };
+    });
+  });
 
   if (loading)
     return (
       <div className="admin-content-page team-admin-page" aria-label="Loading team" aria-busy="true">
-        <div className="skeleton-card">
-          <div className="skeleton-row" />
-          <div className="skeleton-row" />
-          <div className="skeleton-row" />
-        </div>
+        <Skeleton variant="row" count={3} />
       </div>
     );
-  if (error) return <p className="error">{error}</p>;
+  if (error)
+    return (
+      <div className="admin-content-page team-admin-page">
+        <h1>Team admin</h1>
+        <p className="error">{error}</p>
+        <p>
+          <button type="button" onClick={() => window.location.reload()}>
+            Try again
+          </button>
+        </p>
+      </div>
+    );
   return (
     <div className="admin-content-page team-admin-page">
       <h1>Team admin</h1>
@@ -242,7 +270,13 @@ export default function TeamAdmin() {
         <label>Name<input value={form.name} onChange={(e) => set("name", e.target.value)} required /></label>
         <label>Designation<input value={form.designation} onChange={(e) => set("designation", e.target.value)} required /></label>
         <FileUpload folder="vector-flow/team" label="Photo" onUploaded={(url) => set("photoUrl", url)} />
-        {form.photoUrl && <p>Photo: {form.photoUrl}</p>}
+        {form.photoUrl && (
+          <p>
+            Photo: {form.photoUrl}
+            <br />
+            <img src={form.photoUrl} alt="Team photo preview" style={{ maxWidth: "96px", marginTop: "8px" }} />
+          </p>
+        )}
         <label>About (optional)<textarea value={form.bio} onChange={(e) => set("bio", e.target.value)} /></label>
         <label>Order number<input type="number" value={form.orderIndex} onChange={(e) => set("orderIndex", e.target.value)} /></label>
         <label>Academic year, for example 2026-27<input value={form.academicYear} onChange={(e) => set("academicYear", e.target.value)} required /></label>
@@ -295,8 +329,8 @@ export default function TeamAdmin() {
                 <td>{m.orderIndex}</td>
                 <td>
                   <button onClick={() => editMember(m)}>Edit</button>{" "}
-                  <button onClick={() => move(m, "up")} disabled={busyKey === `move:${m.id}:up`}>Up</button>{" "}
-                  <button onClick={() => move(m, "down")} disabled={busyKey === `move:${m.id}:down`}>Down</button>{" "}
+                  <button onClick={() => move(m, "up")} disabled={busyKey === `move:${m.id}:up` || yearEnds[m.id]?.isFirst}>Up</button>{" "}
+                  <button onClick={() => move(m, "down")} disabled={busyKey === `move:${m.id}:down` || yearEnds[m.id]?.isLast}>Down</button>{" "}
                   <button onClick={() => removeMember(m.id)} disabled={busyKey === `remove:${m.id}`}>{busyKey === `remove:${m.id}` ? "Removing..." : "Remove"}</button>
                 </td>
               </tr>

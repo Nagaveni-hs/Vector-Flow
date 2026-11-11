@@ -143,7 +143,13 @@ export default function EventForm({ initial, eventId }) {
       <label>Slug (letters, numbers, and dashes only)<input value={form.slug} onChange={(e) => set("slug", e.target.value)} required />{fieldErrors.slug && <span className="field-error">{fieldErrors.slug}</span>}</label>
       <label>Description<textarea value={form.description} onChange={(e) => set("description", e.target.value)} required /></label>
       <FileUpload folder="vector-flow/posters" label="Poster image" onUploaded={(url) => set("posterImageUrl", url)} />
-      {form.posterImageUrl && <p>Poster: {form.posterImageUrl}</p>}
+      {form.posterImageUrl && (
+        <p>
+          Poster: {form.posterImageUrl}
+          <br />
+          <img src={form.posterImageUrl} alt="Poster preview" style={{ maxWidth: "160px", marginTop: "8px" }} />
+        </p>
+      )}
       <label>Venue<input value={form.venue} onChange={(e) => set("venue", e.target.value)} /></label>
       <label>Mode
         <select value={form.mode} onChange={(e) => set("mode", e.target.value)}>
@@ -168,7 +174,13 @@ export default function EventForm({ initial, eventId }) {
           <label>Payment receiver contact<input value={form.paymentReceiverContact} onChange={(e) => set("paymentReceiverContact", e.target.value)} />{fieldErrors.paymentReceiverContact && <span className="field-error">{fieldErrors.paymentReceiverContact}</span>}</label>
           <FileUpload folder="vector-flow/qr" label="Payment QR image" onUploaded={(url) => set("paymentQrImageUrl", url)} />
           {fieldErrors.paymentQrImageUrl && <p className="field-error">{fieldErrors.paymentQrImageUrl}</p>}
-          {form.paymentQrImageUrl && <p>QR: {form.paymentQrImageUrl}</p>}
+          {form.paymentQrImageUrl && (
+            <p>
+              QR: {form.paymentQrImageUrl}
+              <br />
+              <img src={form.paymentQrImageUrl} alt="Payment QR preview" style={{ maxWidth: "120px", marginTop: "8px" }} />
+            </p>
+          )}
         </>
       )}
       <label>Registration mode

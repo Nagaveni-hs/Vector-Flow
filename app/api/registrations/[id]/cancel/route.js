@@ -38,9 +38,31 @@ export async function POST(request, { params }) {
   if (registration.event && new Date(registration.event.startAt) <= new Date()) {
     return fail("REGISTRATION_CLOSED", 400);
   }
-  const updated = await prisma.registration.update({
-    where: { id: registration.id },
+  // m13 (minors): the cancel itself is a conditional update, so two
+  // concurrent cancels cannot both succeed. Only the caller whose
+  // update changes the row gets the success response; the loser
+  // re-reads the row and gets the outcome that now applies --
+  // ALREADY_CANCELLED when the other cancel won, exactly as a
+  // second sequential cancel would.
+  const claimed = await prisma.registration.updateMany({
+    where: {
+      id: registration.id,
+      status: "REGISTERED",
+      attendance: { not: "PRESENT" },
+    },
     data: { status: "CANCELLED", cancelledAt: new Date() },
+  });
+  if (claimed.count !== 1) {
+    const current = await prisma.registration.findUnique({
+      where: { id: registration.id },
+    });
+    if (!current) return fail("REGISTRATION_NOT_FOUND", 404);
+    if (current.status === "CANCELLED") return fail("ALREADY_CANCELLED", 400);
+    if (current.attendance === "PRESENT") return fail("CANNOT_CANCEL_ATTENDED", 400);
+    return fail("REGISTRATION_NOT_ACTIVE", 400);
+  }
+  const updated = await prisma.registration.findUnique({
+    where: { id: registration.id },
   });
   const paidRefundNote =
     registration.event.feeType === "PAID"
