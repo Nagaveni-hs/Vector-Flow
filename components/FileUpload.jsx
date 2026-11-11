@@ -4,6 +4,40 @@ import { useState } from "react";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
+// m12 (minors): the `accept` prop is enforced here, not just left
+// as a browser hint on the input. The template uploader passes
+// "image/png,image/jpeg", and a browser that ignores the input's
+// accept list must still be refused with a clear message, instead
+// of uploading a WebP that the template route then rejects after a
+// successful upload. Callers with no accept, or plain "image/*",
+// keep the old image-only check.
+function acceptMatches(accept, file) {
+  if (!accept || accept.trim() === "image/*") return file.type.startsWith("image/");
+  const parts = accept
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return parts.some((part) => {
+    if (part.startsWith(".")) return file.name.toLowerCase().endsWith(part);
+    if (part.endsWith("/*")) return file.type.startsWith(part.slice(0, -1));
+    return file.type.toLowerCase() === part;
+  });
+}
+
+function acceptedLabels(accept) {
+  return accept
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((part) => {
+      if (part.startsWith(".")) return part.slice(1).toUpperCase();
+      const sub = part.split("/")[1] || part;
+      if (sub.toLowerCase() === "jpeg") return "JPG";
+      return sub.toUpperCase();
+    })
+    .join(" or ");
+}
+
 export default function FileUpload({ folder, onUploaded, label, accept }) {
   const [message, setMessage] = useState("");
   // M17: the input is disabled while an upload runs, and its value
@@ -13,8 +47,12 @@ export default function FileUpload({ folder, onUploaded, label, accept }) {
   async function onChange(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setMessage("Please choose an image file.");
+    if (!acceptMatches(accept, file)) {
+      setMessage(
+        accept && accept.trim() !== "image/*"
+          ? `Please choose a ${acceptedLabels(accept)} image.`
+          : "Please choose an image file."
+      );
       e.target.value = "";
       return;
     }

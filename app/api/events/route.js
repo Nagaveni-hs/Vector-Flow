@@ -30,7 +30,10 @@ export async function GET() {
 export async function POST(request) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
-  const body = await request.json();
+  const body = await request.json().catch(() => ({}));
+  // m3 (minors): a malformed or empty JSON body used to throw here
+  // and return a Next 500. An empty object fails validation below
+  // instead, with a 400 the admin can act on.
   // P1 (M11): store the normalised slug, never the raw typed one.
   body.slug = normaliseSlug(body.slug);
   const err = validateEvent(body);

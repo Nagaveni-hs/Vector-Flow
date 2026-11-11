@@ -1,9 +1,11 @@
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 // P0 (B3): admin role is re-read from the DB by the shared
 // requireAdmin() in lib/auth.js, not trusted from the JWT claim.
 import { requireAdmin } from "@/lib/auth";
 import { ok, fail } from "@/lib/json";
 import { certFontById } from "@/lib/certNames";
+import { isCloudinaryUrl } from "@/lib/upload";
 
 // PUT, admin only. Saves the certificate template setup for one
 // event: the template image, the font picked for the event, and
@@ -31,6 +33,22 @@ export async function PUT(request, { params }) {
   const box = body.box || {};
   const size = Number(body.size);
   if (!url.startsWith("https://")) return fail("INVALID_TEMPLATE_URL", 400);
+  // m6 (minors): the CSP only allows images from res.cloudinary.com,
+  // so a template on any other host would fail to render in the
+  // placement preview and its fetch would be CSP-blocked. Refuse it
+  // here with its own code instead of storing a URL that can never
+  // be shown. fail() carries no message, so this refusal builds the
+  // response directly, as the certificate route already does.
+  if (!isCloudinaryUrl(url)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "TEMPLATE_HOST_NOT_ALLOWED",
+        message: "The template image must be hosted on Cloudinary (res.cloudinary.com). Upload it with the template uploader instead of pasting a link from another site.",
+      },
+      { status: 400 }
+    );
+  }
   const lower = url.split("?")[0].toLowerCase();
   if (!lower.endsWith(".jpg") && !lower.endsWith(".jpeg") && !lower.endsWith(".png")) {
     return fail("INVALID_TEMPLATE_URL", 400);

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import EventForm from "@/components/EventForm";
+import Skeleton from "@/components/Skeleton";
 
 // P1 (B5): format in Asia/Kolkata local time, not UTC. The old
 // code used toISOString() (UTC), so an event at 10:00 IST was shown
@@ -115,11 +116,7 @@ export default function EditEvent({ params }) {
   if (!initial)
     return (
       <div className="admin-content-page event-edit-page" aria-label="Loading event" aria-busy="true">
-        <div className="skeleton-card">
-          <div className="skeleton-row" />
-          <div className="skeleton-row" />
-          <div className="skeleton-row" />
-        </div>
+        <Skeleton variant="row" count={3} />
       </div>
     );
   return (
@@ -130,10 +127,8 @@ export default function EditEvent({ params }) {
         <h2>Announcement mail</h2>
         <p>Editing this event afterwards does not send the announcement again.</p>
         {!preview && !previewError && (
-          <div className="skeleton-card" aria-label="Loading announcement preview">
-            <div className="skeleton-row" />
-            <div className="skeleton-row" />
-            <div className="skeleton-row" />
+          <div aria-label="Loading announcement preview">
+            <Skeleton variant="row" count={3} />
           </div>
         )}
         {!preview && previewError && (

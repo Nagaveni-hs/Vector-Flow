@@ -85,6 +85,11 @@ export default function Gallery() {
   if (error)
     return (
       <div className="content-page gallery-page">
+        <header className="page-heading">
+          <p className="page-eyebrow">From our community</p>
+          <h1>Gallery</h1>
+          <p>Highlights and moments from Vector Flow events at VVCE.</p>
+        </header>
         <p className="error">{error}</p>
         <p>
           <button type="button" onClick={load}>

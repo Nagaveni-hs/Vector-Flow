@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Skeleton from "@/components/Skeleton";
 import Toast, { useToast } from "@/components/Toast";
 
 // Sprint 3 admin dashboard. For each event it shows counts: total,
@@ -25,9 +26,21 @@ export default function Admin() {
   const [paymentTypeFilter, setPaymentTypeFilter] = useState("");
   const [attendanceFilter, setAttendanceFilter] = useState("");
   const [busyKey, setBusyKey] = useState(null);
+  const [busyAction, setBusyAction] = useState(null);
   const [reason, setReason] = useState("");
   const { toast, showToast, hideToast } = useToast();
   const [screenshot, setScreenshot] = useState(null);
+  // m20: the registrations section renders below the event list.
+  // After "Review payments" loads it, scroll it into view so the
+  // admin sees that something changed.
+  const registrationsRef = useRef(null);
+  const scrollToRegistrations = useRef(false);
+  useEffect(() => {
+    if (scrollToRegistrations.current && registrationsRef.current) {
+      scrollToRegistrations.current = false;
+      registrationsRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selected]);
 
   // M15: the screenshot modal closes with Escape or a backdrop click,
   // same pattern as the certificate viewer modal on Participation.
@@ -41,15 +54,23 @@ export default function Admin() {
 
   useEffect(() => {
     fetch("/api/admin/events")
-      .then((r) => r.json())
-      .then((j) => {
+      .then((r) =>
+        r
+          .json()
+          .catch(() => null)
+          .then((j) => ({ status: r.status, json: j }))
+      )
+      .then(({ status, json }) => {
         setLoading(false);
-        if (j.ok) setEvents(j.data.events);
-        else setError("Admin access only. Please sign in as an admin.");
+        // m19: only a genuine 401/403 is an access error. Any other
+        // failure is a load problem, not a permissions problem.
+        if (json && json.ok) setEvents(json.data.events);
+        else if (status === 401 || status === 403) setError("Admin access only. Please sign in as an admin.");
+        else setError("Could not load the admin dashboard. Check your connection and try again.");
       })
       .catch(() => {
         setLoading(false);
-        setError("Admin access only. Please sign in as an admin.");
+        setError("Could not load the admin dashboard. Check your connection and try again.");
       });
   }, []);
 
@@ -79,8 +100,12 @@ export default function Admin() {
     if (action === "REJECT" && !window.confirm(`Reject the payment of ${registration.name} (${registration.usn})? The student will be mailed the reason: ${reason.trim()}`)) {
       return;
     }
-    const key = `${registration.id}:${action}`;
+    // m21: the busy key is the registration id, not the action, so
+    // one in-flight Verify or Reject disables BOTH buttons for
+    // that row. busyAction only picks which label shows "…ing".
+    const key = `${registration.id}`;
     setBusyKey(key);
+    setBusyAction(action);
     try {
       const res = await fetch(`/api/admin/registrations/${registration.id}/payment`, {
         method: "POST",
@@ -103,6 +128,7 @@ export default function Admin() {
       showToast("Could not update that payment. Please try again.", "error");
     } finally {
       setBusyKey(null);
+      setBusyAction(null);
     }
   }
 
@@ -276,11 +302,7 @@ export default function Admin() {
   if (loading)
     return (
       <div className="admin-content-page" aria-label="Loading admin dashboard" aria-busy="true">
-        <div className="skeleton-card">
-          <div className="skeleton-row" />
-          <div className="skeleton-row" />
-          <div className="skeleton-row" />
-        </div>
+        <Skeleton variant="row" count={3} />
       </div>
     );
   if (error) {
@@ -288,6 +310,11 @@ export default function Admin() {
       <div className="admin-content-page">
         <h1>Admin</h1>
         <p>{error}</p>
+        <p>
+          <button type="button" onClick={() => window.location.reload()}>
+            Try again
+          </button>
+        </p>
       </div>
     );
   }
@@ -331,7 +358,17 @@ export default function Admin() {
               <li key={item.key}>
                 {item.text}{" "}
                 {item.action === "review" ? (
-                  <button onClick={() => loadRegistrations(item.event)}>Review payments</button>
+                  <button
+                    onClick={() => {
+                      scrollToRegistrations.current = true;
+                      loadRegistrations(item.event);
+                      if (registrationsRef.current) {
+                        registrationsRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }
+                    }}
+                  >
+                    Review payments
+                  </button>
                 ) : (
                   <Link href={item.href}>{item.label}</Link>
                 )}
@@ -372,7 +409,7 @@ export default function Admin() {
         </article>
       ))}
       {selected && (
-        <section className="admin-registrations" aria-labelledby="admin-registrations-title">
+        <section ref={registrationsRef} className="admin-registrations" aria-labelledby="admin-registrations-title">
           <h2 id="admin-registrations-title">Registrations for {selected.title}</h2>
           <p>
             Before you press Verify, check the payment screenshot against this event's receiver name and
@@ -469,11 +506,11 @@ export default function Admin() {
                     <td>
                       {r.paymentStatus === "PENDING_REVIEW" && (
                         <>
-                          <button onClick={() => paymentAction(r, "VERIFY")} disabled={busyKey === `${r.id}:VERIFY`}>
-                            {busyKey === `${r.id}:VERIFY` ? "Verifying..." : "Verify"}
+                          <button onClick={() => paymentAction(r, "VERIFY")} disabled={busyKey === `${r.id}`}>
+                            {busyKey === `${r.id}` && busyAction === "VERIFY" ? "Verifying..." : "Verify"}
                           </button>{" "}
-                          <button onClick={() => paymentAction(r, "REJECT")} disabled={busyKey === `${r.id}:REJECT`}>
-                            {busyKey === `${r.id}:REJECT` ? "Rejecting..." : "Reject"}
+                          <button onClick={() => paymentAction(r, "REJECT")} disabled={busyKey === `${r.id}`}>
+                            {busyKey === `${r.id}` && busyAction === "REJECT" ? "Rejecting..." : "Reject"}
                           </button>
                         </>
                       )}

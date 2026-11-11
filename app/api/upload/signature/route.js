@@ -5,7 +5,10 @@ import { ok, fail } from "@/lib/json";
 export async function POST(request) {
   const session = await getSession();
   if (!session) return fail("NOT_SIGNED_IN", 401);
-  const body = await request.json();
+  // m3 (minors): a malformed or empty JSON body used to throw here
+  // and return a Next 500. An empty object fails the folder check
+  // below with a 400 instead.
+  const body = await request.json().catch(() => ({}));
   const folder = String(body.folder || "");
   const allowed = [
     "vector-flow/posters",

@@ -18,7 +18,8 @@
   --color-success: #087a55;
   --shadow-card: 0 8px 26px rgb(31 28 72 / 7%);
   --shadow-header: 0 8px 24px rgb(31 28 72 / 5%);
-  --shadow-focus: 0 0 0 3px rgb(108 91 208 / 20%);
+  /* m38: 80% blends to #897cd9, 3.53:1 on white; the old 20% was 1.31:1. */
+  --shadow-focus: 0 0 0 3px rgb(108 91 208 / 80%);
   --radius-sm: 9px;
   --radius-md: 14px;
   --radius-lg: 22px;
@@ -598,6 +599,27 @@ th {
   text-align: right;
 }
 
+/* m44: moved here from the inline <style> in components/Footer.jsx,
+   so all component styles live in this stylesheet. */
+.site-footer__nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+}
+
+.site-footer__nav a {
+  color: rgb(235 232 255 / 85%);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.site-footer__nav a:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
 .admin-shell {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
@@ -966,7 +988,6 @@ th {
 
   .admin-sidebar__brand {
     display: flex;
-    justify-items: auto;
     justify-content: flex-start;
     margin-bottom: 10px;
     padding: 0 4px 10px;
@@ -1182,6 +1203,7 @@ th {
 
 .home-section-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
@@ -1231,7 +1253,8 @@ th {
 
 .home-section-mark {
   padding-bottom: 7px;
-  color: #8c89a0;
+  /* m37: --color-muted (#6f7187) is 4.79:1 on white; the old value was 3.39:1. */
+  color: var(--color-muted);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -1276,7 +1299,9 @@ th {
 .home-event-card__visual img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* m45: contain, so a portrait poster shows in full on the visual's
+     #f0edff background instead of cropping to a 16:10 strip. */
+  object-fit: contain;
   transition: transform 350ms ease;
 }
 
@@ -1462,7 +1487,7 @@ th {
 .home-about {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 0.75fr);
-  align-items: end;
+  align-items: flex-end;
   gap: clamp(32px, 8vw, 100px);
   padding: clamp(30px, 5vw, 56px);
   border: 1px solid #e6e2f2;
@@ -2137,7 +2162,6 @@ th {
   gap: 10px;
   margin-top: 16px;
   padding: 10px 14px;
-  border: 0;
   border: 1px solid var(--color-navy-900);
   border-radius: var(--radius-sm);
   background: var(--color-navy-900);
@@ -2387,7 +2411,7 @@ th {
 
 .page-heading--split {
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
+  align-items: flex-end;
   gap: 24px;
 }
 
@@ -3169,8 +3193,7 @@ th {
   margin: 6px 0 9px;
 }
 
-.signin-page__description,
-.signin-page__note {
+.signin-page__description {
   color: var(--color-muted);
   font-size: 13px;
 }
@@ -3492,7 +3515,7 @@ th {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
-  align-items: end;
+  align-items: flex-end;
   margin: 12px 0;
 }
 
@@ -3527,6 +3550,9 @@ th {
   height: auto;
 }
 
+/* m41: the name wraps and stays visible instead of clipping: the
+   box is a fixed placement, but a long name must still read in full
+   (the saved PDF already shrinks the name to fit the box). */
 .certgen-box {
   position: absolute;
   border: 2px dashed #6b5ce7;
@@ -3535,11 +3561,10 @@ th {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .certgen-box__name {
-  white-space: nowrap;
   line-height: 1;
   padding-bottom: 2px;
   color: var(--color-ink);
@@ -3549,8 +3574,9 @@ th {
   position: absolute;
   right: -2px;
   bottom: -2px;
-  width: 18px;
-  height: 18px;
+  /* m42: 32px, up from 18px; 44px would crowd the small name box. */
+  width: 32px;
+  height: 32px;
   background: #6b5ce7;
   cursor: nwse-resize;
 }
@@ -3592,10 +3618,9 @@ th {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  white-space: nowrap;
   line-height: 1;
   padding-bottom: 2px;
-  overflow: hidden;
+  overflow: visible;
   color: var(--color-ink);
 }
 
@@ -3929,8 +3954,9 @@ th {
 }
 
 .toast__close {
-  min-width: 32px;
-  min-height: 32px;
+  /* m36: 44px, matching the codebase's own tap-target rule (was 32px). */
+  min-width: 44px;
+  min-height: 44px;
   flex: 0 0 auto;
   padding: 0;
   border: 0;

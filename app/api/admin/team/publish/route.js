@@ -22,9 +22,45 @@ export async function POST(request) {
   if (draft.length === 0) return fail("YEAR_NOT_FOUND", 404);
   const previous = await prisma.teamMember.findMany({ where: { isCurrentYear: true } });
   const previousYear = previous.length > 0 ? previous[0].academicYear : null;
-  await prisma.$transaction([
-    prisma.teamMember.updateMany({ where: { isCurrentYear: true }, data: { isCurrentYear: false } }),
-    prisma.teamMember.updateMany({ where: { academicYear }, data: { isCurrentYear: true } }),
-  ]);
+  // m8 (minors): the strongest guard Prisma allows, short of the
+  // database constraint (see the slice report for the manual
+  // partial-unique-index SQL -- a migration file cannot apply it,
+  // because `prisma db push` ignores checked-in migration SQL).
+  // The switch runs in one interactive transaction that (a) takes a
+  // transaction-scoped advisory lock, so two concurrent publishes
+  // run one after the other instead of interleaving, and (b) reads
+  // back the current years after the switch and rolls the whole
+  // thing back unless exactly the published year is current.
+  // A lock failure or an invariant failure answers 500 with no
+  // partial switch left behind.
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Fixed key, used only by this route. Released automatically
+      // when the transaction ends, so a failed publish never holds
+      // the lock.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(2026111101)`;
+      await tx.teamMember.updateMany({
+        where: { isCurrentYear: true },
+        data: { isCurrentYear: false },
+      });
+      await tx.teamMember.updateMany({
+        where: { academicYear },
+        data: { isCurrentYear: true },
+      });
+      const current = await tx.teamMember.findMany({
+        where: { isCurrentYear: true },
+        select: { academicYear: true },
+      });
+      const years = [...new Set(current.map((m) => m.academicYear))];
+      if (years.length !== 1 || years[0] !== academicYear) {
+        throw new Error("TEAM_PUBLISH_INVARIANT");
+      }
+    });
+  } catch {
+    // Either the invariant failed (rolled back, nothing switched)
+    // or the transaction itself failed: either way the team is
+    // left exactly as it was, and the admin can try again.
+    return fail("TEAM_PUBLISH_FAILED", 500);
+  }
   return ok({ publishedYear: academicYear, previousYear, members: draft.length });
 }

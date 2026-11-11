@@ -19,8 +19,12 @@ export async function POST(request, { params }) {
   // m18: even when the close time was set after the start, nobody
   // registers once the event has begun.
   if (event.startAt && now >= new Date(event.startAt)) return fail("REGISTRATION_CLOSED", 400);
-  const body = await request.json();
-  if (!body.name || !body.usn) return fail("INVALID_FILE", 400);
+  // m3 (minors): a malformed or empty JSON body used to throw here
+  // and return a Next 500, and a JSON `null` body crashed the
+  // `body.name` read below. An empty or null body now fails the
+  // field check with a 400 instead.
+  const body = await request.json().catch(() => ({}));
+  if (!body || !body.name || !body.usn) return fail("INVALID_FILE", 400);
   // P1 (B8): the email is the signed-in user's own college email,
   // read from the DB, not whatever the browser typed. A student can
   // no longer register with a Gmail, or register on someone else's
@@ -67,20 +71,34 @@ export async function POST(request, { params }) {
       paymentStatus: isPaid ? "PENDING_REVIEW" : "NOT_REQUIRED",
       paymentScreenshotUrl: body.paymentScreenshotUrl || null,
     };
-    const registration = existingRegistration
-      ? await prisma.registration.update({
-          where: { id: existingRegistration.id },
-          data: {
-            ...registrationData,
-            status: "REGISTERED",
-            attendance: "UNMARKED",
-            reminderSentAt: null,
-            cancelledAt: null,
-            rejectionReason: null,
-            registeredAt: new Date(),
-          },
-        })
-      : await prisma.registration.create({ data: registrationData });
+    // m13 (minors): re-activating a CANCELLED row is a conditional
+    // update that only the first caller wins. The plain update used
+    // to let two concurrent re-activations both proceed to send the
+    // registration mail; now the loser gets ALREADY_REGISTERED and
+    // sends no second mail. A fresh create is still guarded by the
+    // unique [eventId, userId] index, whose P2002 is caught below.
+    let registration;
+    if (existingRegistration) {
+      const reactivated = await prisma.registration.updateMany({
+        where: { id: existingRegistration.id, status: "CANCELLED" },
+        data: {
+          ...registrationData,
+          status: "REGISTERED",
+          attendance: "UNMARKED",
+          reminderSentAt: null,
+          cancelledAt: null,
+          rejectionReason: null,
+          registeredAt: new Date(),
+        },
+      });
+      if (reactivated.count !== 1) return fail("ALREADY_REGISTERED", 400);
+      registration = await prisma.registration.findUnique({
+        where: { id: existingRegistration.id },
+      });
+      if (!registration) return fail("REGISTRATION_NOT_FOUND", 404);
+    } else {
+      registration = await prisma.registration.create({ data: registrationData });
+    }
     // P1 (M6): save the profile fields to the User row, so the next
     // event's form is prefilled instead of empty forever. This is
     // best-effort and must never fail the registration: a USN that

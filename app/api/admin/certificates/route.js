@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 // requireAdmin() in lib/auth.js, not trusted from the JWT claim.
 import { requireAdmin } from "@/lib/auth";
 import { ok, fail } from "@/lib/json";
+import { isCloudinaryUrl } from "@/lib/upload";
 
 // GET, admin only: certificates for one event, with the registration
 // and student details the admin page needs. Query: ?eventId=...
@@ -12,8 +13,9 @@ export async function GET(request) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
   const eventId = new URL(request.url).searchParams.get("eventId") || "";
+  const where = eventId ? { eventId } : {};
   const certificates = await prisma.certificate.findMany({
-    where: eventId ? { eventId } : {},
+    where,
     orderBy: { id: "asc" },
     include: {
       registration: { select: { name: true, usn: true, email: true, attendance: true, status: true } },
@@ -21,7 +23,13 @@ export async function GET(request) {
     },
     take: 100,
   });
-  return ok({ certificates });
+  // m10 (minors): the list is capped at 100 with no pagination, so
+  // the total is returned alongside it -- otherwise an event with
+  // more than 100 certificates silently shows only the first 100.
+  // The page reads data.certificates as before; `total` is additive
+  // and breaks no caller. Full pagination UI is out of scope.
+  const total = await prisma.certificate.count({ where });
+  return ok({ certificates, total });
 }
 
 // POST, admin only. Body: { registrationId, fileUrl, fileName }.
@@ -45,8 +53,26 @@ export async function POST(request) {
   const registrationId = String(body.registrationId || "");
   const fileUrl = String(body.fileUrl || "");
   if (!registrationId || !fileUrl) return fail("INVALID_FILE", 400);
-  if (!fileUrl.startsWith("http://") && !fileUrl.startsWith("https://")) {
+  // m6 (minors): https only now -- the old http:// allowance was
+  // part of the same laxity, and the only producer of these URLs
+  // is Cloudinary secure_url, which is always https.
+  if (!fileUrl.startsWith("https://")) {
     return fail("INVALID_FILE", 400);
+  }
+  // m6 (minors): the CSP only allows files from res.cloudinary.com,
+  // and the mail worker fetches this URL to attach the PDF, so a
+  // file on any other host (or plain http) is refused here with its
+  // own code and message, instead of being stored and failing later
+  // in the preview or the mail send.
+  if (!isCloudinaryUrl(fileUrl)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "CERTIFICATE_HOST_NOT_ALLOWED",
+        message: "The certificate file must be hosted on Cloudinary (res.cloudinary.com). Upload it with the certificate uploader instead of pasting a link from another site.",
+      },
+      { status: 400 }
+    );
   }
   const lower = fileUrl.split("?")[0].toLowerCase();
   if (!lower.endsWith(".pdf")) return fail("INVALID_FILE", 400);

@@ -21,7 +21,9 @@ function formatEventDate(value, options) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat("en-IN", options).format(date);
+  // m18: pin IST, like participation and gallery do, so the same
+  // event never shows a different day/time on a non-IST device.
+  return new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", ...options }).format(date);
 }
 
 export default function EventDetail({ params }) {
@@ -36,13 +38,22 @@ export default function EventDetail({ params }) {
   const [registered, setRegistered] = useState(false);
 
   useEffect(() => {
+    // m18: a 404 (or a draft the visitor may not see) is "not
+    // found"; any other failure is a load problem, not a missing
+    // event, so the two get different copy below.
     fetch(`/api/events/${params.slug}`)
-      .then((r) => r.json())
-      .then((j) => {
-        if (j.ok) setEvent(j.data.event);
-        else setError("This event was not found.");
+      .then((r) =>
+        r
+          .json()
+          .catch(() => null)
+          .then((j) => ({ status: r.status, json: j }))
+      )
+      .then(({ status, json }) => {
+        if (json && json.ok) setEvent(json.data.event);
+        else if (status === 404 || (json && json.error === "EVENT_NOT_FOUND")) setError("not-found");
+        else setError("load-failed");
       })
-      .catch(() => setError("This event was not found."));
+      .catch(() => setError("load-failed"));
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((j) => {
@@ -98,7 +109,21 @@ export default function EventDetail({ params }) {
     return (
       <div className="event-detail-state">
         <p className="event-detail-eyebrow">Event</p>
-        <h1>This event could not be found.</h1>
+        {error === "load-failed" ? (
+          <>
+            <h1>This event could not be loaded.</h1>
+            <p>Check your connection and try again.</p>
+            <p>
+              <button type="button" onClick={() => window.location.reload()}>
+                Try again
+              </button>
+            </p>
+          </>
+        ) : (
+          <>
+            <h1>This event could not be found.</h1>
+          </>
+        )}
         <Link className="event-detail-back" href="/">← Back to Vector Flow</Link>
       </div>
     );
@@ -178,7 +203,6 @@ export default function EventDetail({ params }) {
           </p>
           <div className="event-detail-badges">
             <StatusBadge value={feeLabel} />
-            <StatusBadge value={event.status} />
           </div>
           <h1 id="event-title">{event.title}</h1>
           <p className="event-detail-hero__description">{event.description}</p>
