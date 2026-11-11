@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import CertificateUpload from "@/components/CertificateUpload";
 import CertificateGenerator from "@/components/CertificateGenerator";
+import Skeleton from "@/components/Skeleton";
 
 // Sprint 4 certificates page. Only students marked Present are
 // listed here. For each row the admin can upload a PDF, tick the
@@ -24,10 +25,13 @@ export default function Certificates({ params }) {
   const [event, setEvent] = useState(null);
   const [registrations, setRegistrations] = useState([]);
   const [certificates, setCertificates] = useState([]);
+  // m10 (minors, coordinator addition): the list API returns a total
+  // alongside the first 100 rows, so the page can say when the list
+  // is truncated instead of silently showing only the first 100.
+  const [certTotal, setCertTotal] = useState(null);
   const [ticks, setTicks] = useState({});
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [uploads, setUploads] = useState({});
   // M10: one in-flight key per action, matching the busy-key pattern
   // on the admin dashboard page, so a double-click cannot queue or
   // save the same certificate twice.
@@ -39,7 +43,15 @@ export default function Certificates({ params }) {
       const attRes = await fetch(`/api/admin/events/${params.id}/attendance`);
       const att = await attRes.json();
       if (!att.ok) {
-        setError("Certificates are for admins only, or this event was not found.");
+        // m19: only a genuine 401/403 is an access error. A 404 is
+        // a missing event; anything else is a load problem.
+        if (attRes.status === 401 || attRes.status === 403) {
+          setError("Certificates are for admins only. Please sign in as an admin.");
+        } else if (attRes.status === 404) {
+          setError("This event was not found.");
+        } else {
+          setError("Could not load the certificates. Check your connection and try again.");
+        }
         return;
       }
       setEvent(att.data.event);
@@ -48,6 +60,7 @@ export default function Certificates({ params }) {
       const cert = await certRes.json();
       if (cert.ok) {
         setCertificates(cert.data.certificates);
+        if (typeof cert.data.total === "number") setCertTotal(cert.data.total);
         const t = {};
         cert.data.certificates.forEach((c) => {
           if (c.status === "UPLOADED" || c.status === "FAILED") t[c.id] = false;
@@ -56,10 +69,10 @@ export default function Certificates({ params }) {
       } else {
         // m39: a failed certificate-list fetch used to leave the list
         // empty, and every row wrongly said "No certificate uploaded".
-        setError("Could not load the certificates. Please try again.");
+        setError("Could not load the certificates. Check your connection and try again.");
       }
     } catch {
-      setError("Could not load the certificates. Please try again.");
+      setError("Could not load the certificates. Check your connection and try again.");
     }
   }
 
@@ -199,10 +212,8 @@ export default function Certificates({ params }) {
     return (
       <div className="admin-content-page certificates-page">
         <h1>Certificates</h1>
-        <div className="skeleton-card" aria-label="Loading certificates">
-          <div className="skeleton-row" />
-          <div className="skeleton-row" />
-          <div className="skeleton-row" />
+        <div aria-label="Loading certificates">
+          <Skeleton variant="row" count={3} />
         </div>
       </div>
     );
@@ -222,6 +233,9 @@ export default function Certificates({ params }) {
           <p>
             Preview: Send to {tickedCount}, hold {heldCount}. Held certificates get no mail and are not shown to the student.
           </p>
+          {certTotal !== null && certificates.length < certTotal && (
+            <p>Showing {certificates.length} of {certTotal} certificates. Only the first {certificates.length} are listed here.</p>
+          )}
           {certificates.length === 0 && (
             <p>No certificates uploaded yet. Upload a PDF for a student marked Present to add one.</p>
           )}
@@ -246,7 +260,18 @@ export default function Certificates({ params }) {
                   <td>{r.name}</td>
                   <td>{r.usn}</td>
                   <td>
-                    {cert ? `${cert.status}${cert.mailError ? ` - ${cert.mailError}` : ""}` : "No certificate uploaded"}
+                    {cert ? (
+                      <>
+                        {cert.status}
+                        {cert.mailError ? (
+                          <span title={cert.mailError}> - Send failed - try again</span>
+                        ) : (
+                          ""
+                        )}
+                      </>
+                    ) : (
+                      "No certificate uploaded"
+                    )}
                   </td>
                   <td>
                     <CertificateUpload
@@ -258,6 +283,7 @@ export default function Certificates({ params }) {
                     {cert && (cert.status === "UPLOADED" || cert.status === "FAILED") && (
                       <input
                         type="checkbox"
+                        aria-label={`Send certificate to ${r.name}`}
                         checked={!!ticks[cert.id]}
                         onChange={(e) => setTicks((t) => ({ ...t, [cert.id]: e.target.checked }))}
                       />

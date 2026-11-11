@@ -153,6 +153,13 @@ export default function MailPage() {
       showToast("Add at least one email address to the To box, or load one from a file first.", "error");
       return;
     }
+    // m27: the 200-recipient cap is enforced here, before the
+    // confirm dialog and the send, instead of failing opaquely
+    // at the server afterwards.
+    if (recipients.length > 200) {
+      showToast(`That is ${recipients.length} recipients, over the 200-recipient limit. Remove ${recipients.length - 200} before sending.`, "error");
+      return;
+    }
     if (!subject.trim()) {
       showToast("Write a subject first.", "error");
       return;

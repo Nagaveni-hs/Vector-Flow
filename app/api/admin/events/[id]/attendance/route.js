@@ -42,6 +42,9 @@ export async function POST(request, { params }) {
   if (sentCertificate) return fail("ATTENDANCE_LOCKED", 400);
   const body = await request.json().catch(() => ({}));
   const marks = Array.isArray(body.marks) ? body.marks : [];
+  // m9 (minors): cap the batch at 200, matching the mail cap, so
+  // one call cannot save an unbounded number of marks.
+  if (marks.length > 200) return fail("TOO_MANY_MARKS", 400);
   const allowed = ["PRESENT", "ABSENT", "UNMARKED"];
   const refused = [];
   const updates = [];
@@ -83,13 +86,32 @@ export async function POST(request, { params }) {
       refused.push({ registrationId: registration.id, reason: "EVENT_NOT_STARTED" });
       continue;
     }
-    updates.push(
-      prisma.registration.update({
-        where: { id: registration.id },
-        data: { attendance: mark.attendance },
-      })
-    );
+    updates.push({ id: registration.id, attendance: mark.attendance });
   }
-  await prisma.$transaction(updates);
+  // m13 (minors): the SENT lock is re-checked inside the write
+  // transaction, immediately before the marks are applied, so a
+  // certificate that became SENT after the first check at the top
+  // still blocks the save. This narrows the race to the instant
+  // between the re-check and the commit; it cannot close it fully
+  // with Prisma alone (that would need a row lock), and the worker's
+  // own pre-send eligibility re-check stays the backstop.
+  try {
+    await prisma.$transaction(async (tx) => {
+      const locked = await tx.certificate.findFirst({
+        where: { eventId: event.id, status: "SENT" },
+        select: { id: true },
+      });
+      if (locked) throw new Error("ATTENDANCE_LOCKED");
+      for (const u of updates) {
+        await tx.registration.update({
+          where: { id: u.id },
+          data: { attendance: u.attendance },
+        });
+      }
+    });
+  } catch (e) {
+    if (e && e.message === "ATTENDANCE_LOCKED") return fail("ATTENDANCE_LOCKED", 400);
+    throw e;
+  }
   return ok({ saved: updates.length, refused });
 }

@@ -27,7 +27,11 @@ export async function PUT(request, { params }) {
   // field still finds (and saves) the event instead of 404ing.
   const existing = await prisma.event.findUnique({ where: { slug: params.slug } });
   if (!existing) return fail("EVENT_NOT_FOUND", 404);
-  const body = await request.json();
+  // m3 (minors): a malformed or empty JSON body used to throw here
+  // and return a Next 500. An empty object merges to the stored
+  // event, so the update below has nothing to change and the route
+  // answers 400 instead.
+  const body = await request.json().catch(() => ({}));
   // P1 (M11): normalise the new slug before validating or storing it.
   if (body.slug !== undefined) body.slug = normaliseSlug(body.slug);
   // P1 (M7): PUT is validated exactly like POST now. The form always

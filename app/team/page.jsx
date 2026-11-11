@@ -57,6 +57,13 @@ export default function Team() {
   if (error)
     return (
       <div className="content-page team-page">
+        <header className="page-heading page-heading--split">
+          <div>
+            <p className="page-eyebrow">The people behind the club</p>
+            <h1>Our team</h1>
+            <p>Meet the students who make Vector Flow happen.</p>
+          </div>
+        </header>
         <p className="error">{error}</p>
         <p>
           <button type="button" onClick={() => load(year)}>
@@ -86,7 +93,7 @@ export default function Team() {
           </label>
         )}
       </header>
-      <p className="team-page__year">Showing team for {data.year || "no year yet"}.</p>
+      {data.year && <p className="team-page__year">Showing team for {data.year}.</p>}
       {data.members.length === 0 ? (
         <p className="empty-state">No team members listed for this year yet.</p>
       ) : (
