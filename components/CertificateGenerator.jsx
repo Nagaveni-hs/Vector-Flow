@@ -56,6 +56,11 @@ export default function CertificateGenerator({ eventId, event, registrations, on
       setBox(savedTemplate.box);
       setFontId(savedTemplate.font);
       setSize(savedTemplate.size);
+      // The saved template changed, so any generated rows were made
+      // with the old template/font: drop them and the cached font
+      // bytes rather than saving PDFs in a stale font (M4).
+      setRows(null);
+      fontBytesRef.current = null;
     }
     // Only the saved template drives this, not the drafts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -71,24 +76,34 @@ export default function CertificateGenerator({ eventId, event, registrations, on
     }
     setSavingTemplate(true);
     setTemplateMessage("");
-    const res = await fetch(`/api/admin/events/${eventId}/certificate-template`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: draftUrl, font: fontId, box, size }),
-    });
-    const json = await res.json();
-    setSavingTemplate(false);
-    if (!json.ok) {
-      setTemplateMessage("Could not save the template. Please check the image is a JPG or PNG and try again.");
-      return;
+    try {
+      const res = await fetch(`/api/admin/events/${eventId}/certificate-template`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: draftUrl, font: fontId, box, size }),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        setTemplateMessage("Could not save the template. Please check the image is a JPG or PNG and try again.");
+        return;
+      }
+      setTemplateMessage(
+        registrations.length > 0
+          ? "Template and placement saved. You can generate certificates now."
+          : "Template and placement saved. Mark attendance, then come back here to generate certificates."
+      );
+      setShowChangeTemplate(false);
+      // The saved template changed, so any generated rows were made
+      // with the old template/font: drop them and the cached font
+      // bytes rather than saving PDFs in a stale font (M4).
+      setRows(null);
+      fontBytesRef.current = null;
+      if (onSaved) onSaved();
+    } catch {
+      setTemplateMessage("Could not save the template. Please check your connection and try again.");
+    } finally {
+      setSavingTemplate(false);
     }
-    setTemplateMessage(
-      registrations.length > 0
-        ? "Template and placement saved. You can generate certificates now."
-        : "Template and placement saved. Mark attendance, then come back here to generate certificates."
-    );
-    setShowChangeTemplate(false);
-    if (onSaved) onSaved();
   }
 
   function onTemplateUploaded(url) {
@@ -199,6 +214,16 @@ export default function CertificateGenerator({ eventId, event, registrations, on
   // never lost by saving a stale file. Rows whose font cannot print
   // the edited name keep no PDF and cannot be saved.
   async function saveRows(rowsToSave) {
+    // Never save with stale or missing font bytes: if the template
+    // or font changed since these rows were generated, the rows
+    // should already have been cleared, but refuse here too rather
+    // than regenerating PDFs with a null/wrong font (M4).
+    if (!fontBytesRef.current || !savedTemplate) {
+      setSaveMessage(
+        "The template or font changed since these certificates were generated. Generate them again before saving."
+      );
+      return;
+    }
     setSaving(true);
     setSaveMessage("");
     let done = 0;
@@ -289,6 +314,18 @@ export default function CertificateGenerator({ eventId, event, registrations, on
 
   const includedCount = rows ? rows.filter((r) => !r.removed && r.pdfBytes).length : 0;
   const failedRows = rows ? rows.filter((r) => r.saveStatus === "failed") : [];
+  // The placement editor edits the draft box/font/size, but
+  // generate() only reads the saved template. While the draft
+  // differs from what is saved, generating would silently use the
+  // old placement, so Generate stays disabled until saved (M5).
+  const templateDirty =
+    templateSaved &&
+    (box.x !== savedTemplate.box.x ||
+      box.y !== savedTemplate.box.y ||
+      box.w !== savedTemplate.box.w ||
+      box.h !== savedTemplate.box.h ||
+      fontId !== savedTemplate.font ||
+      size !== savedTemplate.size);
 
   return (
     <section className="certgen">
@@ -373,6 +410,30 @@ export default function CertificateGenerator({ eventId, event, registrations, on
               />
             </label>
             <label>
+              Box left (% of template)
+              <input
+                type="number"
+                min="0"
+                max="95"
+                value={Math.round(box.x * 100)}
+                onChange={(e) =>
+                  setBox((b) => ({ ...b, x: Math.min(1 - b.w, Math.max(0, (Number(e.target.value) || 0) / 100)) }))
+                }
+              />
+            </label>
+            <label>
+              Box top (% of template)
+              <input
+                type="number"
+                min="0"
+                max="95"
+                value={Math.round(box.y * 100)}
+                onChange={(e) =>
+                  setBox((b) => ({ ...b, y: Math.min(1 - b.h, Math.max(0, (Number(e.target.value) || 0) / 100)) }))
+                }
+              />
+            </label>
+            <label>
               Box width (% of template)
               <input
                 type="number"
@@ -421,10 +482,11 @@ export default function CertificateGenerator({ eventId, event, registrations, on
               : "Save a template and placement first, then you can generate."}
           </p>
           <p>
-            <button type="button" onClick={generate} disabled={!templateSaved || generating}>
+            <button type="button" onClick={generate} disabled={!templateSaved || generating || templateDirty}>
               {generating ? "Generating..." : "Generate certificates"}
             </button>
           </p>
+          {templateDirty && <p>Save template &amp; placement first — your changes are not saved yet.</p>}
           {generateMessage && <p>{generateMessage}</p>}
         </>
       )}
@@ -573,6 +635,9 @@ function PlacementEditor({ templateUrl, box, onBoxChange, fontId, size, sampleNa
         <span
           className="certgen-box__handle"
           title="Drag to resize"
+          tabIndex={0}
+          role="slider"
+          aria-label="Resize name box"
           onPointerDown={(e) => {
             e.stopPropagation();
             dragRef.current = { mode: "resize", startX: e.clientX, startY: e.clientY, startBox: box };

@@ -368,12 +368,21 @@ again.
 
 Full checklist: `TEST-CHECKLIST.md` in this repo root, plus
 `node scripts/local-checks.js` after `npm run dev` is up. Those checks run locally only. They do not
-prove anything about a live production site, because this site is
-not deployed yet.
+prove anything about a live production site.
 
-Deployment to Vercel is deferred until the website is complete,
-and needs a separate go from the site owner. Do not create a
-Vercel project or deploy from this patch alone.
+The site is live on Vercel, deployed from club main. The Vercel
+project lives under the vectorflow-club team, and the production
+domain is https://vector-flow-club.vercel.app (the original address,
+https://vector-flow-neon.vercel.app, still works too). Every merge to
+club main auto-deploys to production — there is no manual deploy
+step. Never press Redeploy on an old deployment, because that
+rebuilds the old code instead of the merged one.
+
+To verify a deploy: open the Vercel project, check the Deployments
+tab for the deployment matching the merged commit, wait for its
+status to read Ready, then open the production URL and check the
+change is live there. Local checks passing proves nothing about
+production; only the Ready deployment on the production URL does.
 
 ## PWA icon note
 

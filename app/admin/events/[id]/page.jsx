@@ -82,21 +82,34 @@ export default function EditEvent({ params }) {
     loadPreview();
   }, [params.id]);
   async function sendAnnouncement() {
+    // M8: mass mail to the whole students group is one-way, so ask
+    // first and name the audience before anything is sent.
+    if (
+      !window.confirm(
+        `Send this announcement to all students (${preview ? preview.to : "the students group"})? This mails everyone at once and cannot be undone.`
+      )
+    )
+      return;
     setAnnouncing(true);
     setAnnounceMessage("");
-    const res = await fetch(`/api/admin/events/${params.id}/announce`, { method: "POST" });
-    const j = await res.json();
-    setAnnouncing(false);
-    if (!j.ok) {
-      setAnnounceMessage(
-        j.error === "ANNOUNCEMENT_ALREADY_SENT"
-          ? "This announcement was already sent. Sending again is blocked."
-          : "Announcement mail failed to send. Nothing was marked as sent, so you can try again."
-      );
-      return;
+    try {
+      const res = await fetch(`/api/admin/events/${params.id}/announce`, { method: "POST" });
+      const j = await res.json();
+      if (!j.ok) {
+        setAnnounceMessage(
+          j.error === "ANNOUNCEMENT_ALREADY_SENT"
+            ? "This announcement was already sent. Sending again is blocked."
+            : "Announcement mail failed to send. Nothing was marked as sent, so you can try again."
+        );
+        return;
+      }
+      setAnnounceMessage("Announcement sent to the students group.");
+      setPreview((p) => (p ? { ...p, alreadySent: true, announcementSentAt: j.data.announcementSentAt } : p));
+    } catch {
+      setAnnounceMessage("Announcement mail failed to send. Nothing was marked as sent, so you can try again.");
+    } finally {
+      setAnnouncing(false);
     }
-    setAnnounceMessage("Announcement sent to the students group.");
-    setPreview((p) => (p ? { ...p, alreadySent: true, announcementSentAt: j.data.announcementSentAt } : p));
   }
   if (error) return <p className="error">{error}</p>;
   if (!initial)

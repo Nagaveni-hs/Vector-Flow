@@ -47,24 +47,29 @@ export default function Attendance({ params }) {
   async function saveAll() {
     setSaving(true);
     setMessage("");
-    const list = registrations.map((r) => ({ registrationId: r.id, attendance: marks[r.id] || "UNMARKED" }));
-    const res = await fetch(`/api/admin/events/${params.id}/attendance`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ marks: list }),
-    });
-    const json = await res.json();
-    setSaving(false);
-    if (!json.ok) {
+    try {
+      const list = registrations.map((r) => ({ registrationId: r.id, attendance: marks[r.id] || "UNMARKED" }));
+      const res = await fetch(`/api/admin/events/${params.id}/attendance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ marks: list }),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        setMessage("Could not save attendance. Please try again.");
+        return;
+      }
+      setMessage(
+        `Saved ${json.data.saved} rows.` +
+          (json.data.refused && json.data.refused.length > 0
+            ? ` ${json.data.refused.length} rows were refused, because a cancelled registration cannot be marked Present.`
+            : "")
+      );
+    } catch {
       setMessage("Could not save attendance. Please try again.");
-      return;
+    } finally {
+      setSaving(false);
     }
-    setMessage(
-      `Saved ${json.data.saved} rows.` +
-        (json.data.refused && json.data.refused.length > 0
-          ? ` ${json.data.refused.length} rows were refused, because a cancelled registration cannot be marked Present.`
-          : "")
-    );
   }
 
   if (error) return <p className="error">{error}</p>;
